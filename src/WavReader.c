@@ -3,25 +3,6 @@
 #include <stdlib.h>
 #include <math.h>
 
-static double adsr_envelope(double time, uint32_t duration) {
-
-    const double attack_time = 0.1 * (double)duration;  // 10% of the duration
-    const double decay_time = 0.5 * (double)duration;  	// 20% of the duration
-    const double sustain_level = 0.7;            	// Sustain level (0 to 1)
-
-    if (time < attack_time) {
-        return time / attack_time;  // Attack phase
-    } else if (time < decay_time) {
-        return 1.0 - (1.0 - sustain_level) * ((time - attack_time) / (decay_time - attack_time));
-    } else if (time < (double)duration - 0.1) {
-        return sustain_level;  // Sustain phase
-    } else {
-        // Release phase (last 10% of duration)
-        return sustain_level * (1.0 - (time - ((double)duration - 0.1)) / 0.1);
-    }
-
-}
-
 struct WAV_file create_WAV_file_sin_wave(
 		/* Endian-ness? */
 		double	 freq,
@@ -66,18 +47,21 @@ struct WAV_file create_WAV_file_sin_wave(
 
 	};
 	
-	// Create sin wave for sound data
-	for (uint32_t i = 0; i < subchunk2_size; i += 2) {
-		double time = (double)i / (double)subchunk2_size;
-		double amp = adsr_envelope(time, (double)duration);
+    double amp = pow(10, -6.0 / 20.0) * (pow(2, bits_per_sample - 1) - 1);
+    double sample_period = 1.0 / sample_rate;
+    double ang_freq = 2.0 * M_PI * freq;
 
-		double value = amp * sin(2.0 * M_PI * freq * time);
+    for (uint32_t i = 0; i < subchunk2_size / (bits_per_sample / 8); i++) {
+        double t = (double)i * sample_period;
+        int16_t sample = (int16_t)(amp * sin(ang_freq * t));
 
-		uint16_t sample_value = (uint16_t)(value * INT16_MAX);
-
-		wav.data.buff[i]   = (unsigned char)((sample_value >> 0) & 0xFF);
-		wav.data.buff[i+1] = (unsigned char)((sample_value >> 8) & 0xFF);
-	}
+        // For stereo, write the same sample to both left and right channels
+        for (uint16_t channel = 0; channel < num_channels; ++channel) {
+            uint32_t sample_index = i * num_channels + channel;
+            wav.data.buff[sample_index * 2] = sample & 0xFF;
+            wav.data.buff[sample_index * 2 + 1] = (sample >> 8) & 0xFF;
+        }
+    }
 
 	return wav;
 }
