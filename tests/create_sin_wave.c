@@ -11,9 +11,13 @@ int main(void) {
 
     WAV_file_write_sin_wave(&wav, 174.0);
 
-	write_WAV_to_file(&wav, "test-sin.wav");
+    write_WAV_to_file(&wav, "test-sin.wav");
 
-	free_WAV_file(wav);
+    WAV_file_write_binaural_wave(&wav, 174.0, 164.0);
+    
+    write_WAV_to_file(&wav, "test-binaural.wav");
+
+    free_WAV_file(wav);
 
 	return 0;
 }
