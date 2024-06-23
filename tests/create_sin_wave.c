@@ -1,21 +1,19 @@
 #include "WavReader.h"
-#include <stdio.h>
 
 int main(void) {
 
-	struct WAV_file wav = create_WAV_file_sin_wave(
-			100,	// frequency
+	struct WAV_file wav = alloc_WAV_file(
 			2,	// channels
 			44100,	// sample rate
 			16,	// bits per sample
-			10	// duration (seconds)
+			20	// duration (seconds)
 		);
 
-	FILE* file = write_WAV_to_file(wav, "test-sin.wav");
+    WAV_file_write_sin_wave(&wav, 174.0);
+
+	write_WAV_to_file(&wav, "test-sin.wav");
 
 	free_WAV_file(wav);
-
-	fclose(file);
 
 	return 0;
 }
