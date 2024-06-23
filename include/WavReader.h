@@ -49,7 +49,7 @@ void WAV_file_write_sin_wave(
         double frequency
     );
 
-void WAV_file_write_biaural_wave(
+void WAV_file_write_binaural_wave(
         struct WAV_file *file,
         double frequency1,
         double frequency2
