@@ -7,23 +7,14 @@
 struct WAV_file alloc_WAV_file(
 		uint16_t num_channels,
 		uint32_t sample_rate,
-		uint16_t bits_per_sample,	
-		uint32_t duration)
+		uint16_t bits_per_sample)
 {
-
-	const uint32_t subchunk2_size =
-		(bits_per_sample / 8) 	// bytes for a sample
-		* num_channels		// now bytes for all channels for one sample
-		* sample_rate 		// now bytes for all channels for all samples in one second
-		* duration;		// now total bytes overall for total duration in seconds
-
-	const uint32_t chunk_size = 36 + subchunk2_size;
 
 	const struct WAV_file wav = (struct WAV_file) {
 		
 		.riff = (struct RIFF_chunk) {
 			.chunk_id   = {'R','I','F','F'},
-			.chunk_size = chunk_size,
+			.chunk_size = 36, // We have no sound data so far
 			.format     = {'W','A','V','E'},
 		},
 
@@ -40,8 +31,9 @@ struct WAV_file alloc_WAV_file(
 
 		.data = {
 			.subchunk2_id   = {'d', 'a', 't', 'a'},
-			.subchunk2_size = subchunk2_size,
-			.buff = (unsigned char*)malloc(subchunk2_size),
+			.subchunk2_size = 0,
+			//.buff = (unsigned char*)malloc(subchunk2_size),
+			.buff = NULL,
 		},
 
 	};
@@ -51,8 +43,29 @@ struct WAV_file alloc_WAV_file(
 
 void WAV_file_write_sin_wave(
         struct WAV_file *wav,
-        double freq)
+        double freq,
+        uint32_t duration)
 {
+    if (wav == NULL) {
+        perror("Cannot write sin wave to WAV as WAV struct is NULL");   
+        return;
+    } else if (wav->data.buff != NULL || wav->data.subchunk2_size != 0) {
+        free(wav->data.buff);
+        wav->data.buff = NULL;
+        wav->data.subchunk2_size = 0;
+        wav->riff.chunk_size = 36;
+    }
+
+	const uint32_t subchunk2_size =
+		(wav->fmt.bits_per_sample / 8) 
+		* wav->fmt.num_channels
+		* wav->fmt.sample_rate
+		* duration;
+
+    wav->data.subchunk2_size = subchunk2_size;
+    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * subchunk2_size);
+	wav->riff.chunk_size = 36 + subchunk2_size;
+
     // -6Db amplitude by default
     const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
     const double sample_period = 1.0 / wav->fmt.sample_rate;
@@ -85,8 +98,29 @@ void WAV_file_write_sin_wave(
 void WAV_file_write_binaural_wave(
         struct WAV_file *wav,
         double freq1,
-        double freq2)
+        double freq2,
+        uint32_t duration)
 {
+    if (wav == NULL) {
+        perror("Cannot write sin wave to WAV as WAV struct is NULL");   
+        return;
+    } else if (wav->data.buff != NULL || wav->data.subchunk2_size != 0) {
+        free(wav->data.buff);
+        wav->data.buff = NULL;
+        wav->data.subchunk2_size = 0;
+        wav->riff.chunk_size = 36;
+    }
+
+	const uint32_t subchunk2_size =
+		(wav->fmt.bits_per_sample / 8) 
+		* wav->fmt.num_channels
+		* wav->fmt.sample_rate
+		* duration;
+
+    wav->data.subchunk2_size = subchunk2_size;
+    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * subchunk2_size);
+	wav->riff.chunk_size = 36 + subchunk2_size;
+
     // -6Db amplitude by default
     const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
     const double sample_period = 1.0 / wav->fmt.sample_rate;
@@ -122,9 +156,11 @@ void WAV_file_write_binaural_wave(
     }
 }
 
-void free_WAV_file(struct WAV_file file) {
-	if (file.data.buff == NULL) return;
-	free(file.data.buff);
+void free_WAV_file(struct WAV_file *file) {
+	if (file->data.buff == NULL) return;
+    file->riff.chunk_size = 36;
+	free(file->data.buff);
+    file->data.subchunk2_size = 0;
 }
 
 void write_WAV_to_file(
