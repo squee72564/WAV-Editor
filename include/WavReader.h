@@ -40,22 +40,27 @@ struct WAV_file {
 struct WAV_file alloc_WAV_file(
 		uint16_t num_channels,
 		uint32_t sample_rate,
-		uint16_t bits_per_sample,	
-		uint32_t duration /* seconds */
+		uint16_t bits_per_sample
 	);
+
+struct WAV_file read_WAV_file(
+        char *file_name
+    );
 
 void WAV_file_write_sin_wave(
         struct WAV_file *file,
-        double frequency
+        double frequency,
+        uint32_t duration
     );
 
 void WAV_file_write_binaural_wave(
         struct WAV_file *file,
         double frequency1,
-        double frequency2
+        double frequency2,
+        uint32_t duration
     );
 
-void free_WAV_file(struct WAV_file file);
+void free_WAV_file(struct WAV_file *file);
 
 void write_WAV_to_file(
         struct WAV_file *wav,
