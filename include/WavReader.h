@@ -43,7 +43,7 @@ struct WAV_file alloc_WAV_file(
 		uint16_t bits_per_sample
 	);
 
-struct WAV_file read_WAV_file(
+struct WAV_file* read_WAV_file(
         char *file_name
     );
 
@@ -66,5 +66,7 @@ void write_WAV_to_file(
         struct WAV_file *wav,
         const char* file_name
     );
+
+
 
 #endif
