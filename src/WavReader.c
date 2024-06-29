@@ -128,6 +128,14 @@ struct WAV_file* read_WAV_file(char *file_name)
 	}
 
 	printf("Data after sound data:\n");
+
+	/* It seems like this data is weirdly inconsistent
+	 * maybe we just keep everything as is after editing the
+	 * sound file or something
+	 *
+	 * there is also ID3 tags and other data for mp3 which is strange
+	 * and adds to the complexity to parse
+	 */
 	
 	unsigned char buff[5] = {0};	
 	buff[4] = '\0';
@@ -143,12 +151,17 @@ struct WAV_file* read_WAV_file(char *file_name)
 	printf("Size: %d\n", sz);
 	printf("List type ID: %s\n\n", buff2);
 
+	uint32_t sz2 = 0;
+	unsigned char buff3[5] = {0};
+	buff3[4] = '\0';
 	while (1) {
-		uint32_t sz2 = 0;
-		unsigned char buff3[5] = {0};
-		buff3[4] = '\0';
 		fread(buff3, 4, 1, file);
 		fread(&sz2, 4, 1, file);
+
+		if (memcmp(buff3, "IPRD", 4) == 0 ||
+		    memcmp(buff3, "IART", 4) == 0) {
+			sz2++;
+		}
 		
 		printf("%s\n", buff3);
 		printf("%d\n", sz2);
@@ -160,7 +173,9 @@ struct WAV_file* read_WAV_file(char *file_name)
 				flag = 1;
 				break;
 			}
+			printf("%c", c);
 		}
+		printf("\n");
 		if (flag) break;
 	}
 	
