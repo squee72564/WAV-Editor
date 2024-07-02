@@ -62,7 +62,8 @@ struct WAV_file {
  * ----------------------------------------
  */
 
-struct WAV_file alloc_WAV_file(
+void init_WAV_file(
+		struct WAV_file *wav,
 		uint16_t num_channels,
 		uint32_t sample_rate,
 		uint16_t bits_per_sample
