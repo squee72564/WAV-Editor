@@ -7,6 +7,7 @@ int main(void) {
 	memset(&wav, 0, sizeof(wav));
 
 	init_WAV_file(
+		&wav,
 		2,	// channels
 		44100,	// sample rate
 		16	// bits per sample
