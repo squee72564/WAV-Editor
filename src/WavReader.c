@@ -5,23 +5,24 @@
 #include <string.h>
 #include <math.h>
 
-struct WAV_file alloc_WAV_file(
+void init_WAV_file(
+		struct WAV_file *wav,
 		uint16_t num_channels,
 		uint32_t sample_rate,
 		uint16_t bits_per_sample)
 {
 
-	const struct WAV_file wav = (struct WAV_file) {
+	*wav = (struct WAV_file) {
 		
 		.riff = (struct RIFF_chunk) {
-			.chunk_id   = {'R','I','F','F'},
-			.chunk_size = 36, // We have no sound data so far
+			.id   = {'R','I','F','F'},
+			.size = 36, // We have no sound data so far
 			.format     = {'W','A','V','E'},
 		},
 
 		.fmt = (struct FMT_chunk) {
-			.subchunk1_id    = {'f', 'm', 't', ' '},
-			.subchunk1_size	 = 16,	// assuming PCM
+			.id    = {'f', 'm', 't', ' '},
+			.size	 = 16,	// assuming PCM
 			.audio_format    = 1,	// assuming PCM
 			.num_channels    = num_channels,
 			.sample_rate	 = sample_rate,
@@ -31,165 +32,181 @@ struct WAV_file alloc_WAV_file(
 		},
 
 		.data = (struct DATA_chunk) {
-			.subchunk2_id   = {'d', 'a', 't', 'a'},
-			.subchunk2_size = 0,
+			.id   = {'d', 'a', 't', 'a'},
+			.size = 0,
 			.buff = NULL,
 		},
 
-	};
+		.extra = NULL,
 
-	return wav;
+	};
 }
 
-struct WAV_file* read_WAV_file(char *file_name)
+static int read_RIFF_chunk(struct WAV_file *wav, FILE *file)
 {
-	if (file_name == NULL) return NULL;
+	memcpy(wav->riff.id, "RIFF", sizeof(wav->riff.id));
+	fread(&wav->riff.size, sizeof(wav->riff.size), 1, file);
+	fread(&wav->riff.format, sizeof(wav->riff.format), 1, file);
+
+	if (memcmp(&wav->riff.format, "WAVE", sizeof(wav->riff.format) != 0)) {
+		fclose(file);
+		return 0;
+	}
+
+	return 1;
+	
+}
+
+static int read_FMT_chunk(struct WAV_file *wav, FILE *file)
+{
+	memcpy(wav->fmt.id, "fmt ", sizeof(wav->fmt.id));
+	fread(&wav->fmt.size, sizeof(wav->fmt.size), 1, file);
+	fread(&wav->fmt.audio_format, sizeof(wav->fmt.audio_format), 1, file);
+	fread(&wav->fmt.num_channels, sizeof(wav->fmt.num_channels), 1, file);
+	fread(&wav->fmt.sample_rate, sizeof(wav->fmt.sample_rate), 1, file);
+	fread(&wav->fmt.byte_rate, sizeof(wav->fmt.byte_rate), 1, file);
+	fread(&wav->fmt.block_align, sizeof(wav->fmt.block_align), 1, file);
+	fread(&wav->fmt.bits_per_sample, sizeof(wav->fmt.bits_per_sample), 1, file);
+
+	return 1;
+}
+
+static int read_DATA_chunk(struct WAV_file *wav, FILE *file)
+{
+	memcpy(wav->data.id, "data", sizeof(wav->data.id));
+	fread(&wav->data.size, sizeof(wav->data.size), 1, file);
+
+	wav->data.buff = (unsigned char*)malloc(wav->data.size);
+
+	if (wav->data.buff == NULL ) {
+		perror("Could not alloc wav data buffer.\n");
+		fclose(file);
+		return 0;
+	}
+
+	if (fread(wav->data.buff, wav->data.size, 1, file) != 1) {
+		perror("Could not write to wav data buffer.\n");
+		fclose(file);
+		free(wav->data.buff);	
+		return 0;
+	}
+	
+	return 1;
+}
+
+static int read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chunk_id)
+{
+	struct EXTRA_chunk **extra = &wav->extra;
+
+	while (*extra != NULL) {
+		extra = &(*extra)->next;
+	}
+
+	*extra = (struct EXTRA_chunk*)malloc(sizeof(struct EXTRA_chunk));
+
+	memcpy((*extra)->id, chunk_id, sizeof((*extra)->id));
+
+	if (fread(&(*extra)->size, 4, 1, file) != 1) {
+		free(*extra);
+		return 0;
+	}
+
+	(*extra)->buff = (unsigned char*)malloc((*extra)->size);
+
+	if (fread((*extra)->buff, (*extra)->size, 1, file) != 1) {
+		free((*extra)->buff);
+		free(*extra);
+		return 0;
+	}
+
+	return 1;
+}
+
+int read_WAV_file(struct WAV_file *wav, char *file_name)
+{
+	if (file_name == NULL) return 0;
 
 	FILE *file = fopen(file_name, "r");
 
 	if (file == NULL) {
 		perror("Failed to open file for read.\n");
 		fclose(file);
-		return NULL;
 	}
 
-	struct WAV_file wav;
-
-	printf("RIFF_CHUNK:\n");
-
-	fread(&wav.riff.chunk_id, sizeof(wav.riff.chunk_id), 1, file);
-
-	if (memcmp(&wav.riff.chunk_id, "RIFF", sizeof(wav.riff.chunk_id) != 0) ||
-	    memcmp(&wav.riff.chunk_id, "RIFX", sizeof(wav.riff.chunk_id) != 0)) {
-		fclose(file);
-		return NULL;
-	}
-
-	printf("-- chunk_id: RIFF\n");
-
-	fread(&wav.riff.chunk_size, sizeof(wav.riff.chunk_size), 1, file);
-	
-	printf("-- chunk_size: %d\n", wav.riff.chunk_size);
-
-	fread(&wav.riff.format, sizeof(wav.riff.format), 1, file);
-
-	if (memcmp(&wav.riff.format, "WAVE", sizeof(wav.riff.format) != 0)) {
-		fclose(file);
-		return NULL;
-	}
-
-	printf("-- format: WAVE\n");
-
-	printf("FMT_CHUNK:\n");
-
-	fread(&wav.fmt.subchunk1_id, sizeof(wav.fmt.subchunk1_id), 1, file);
-
-	if (memcmp(&wav.fmt.subchunk1_id, "fmt ", sizeof(wav.fmt.subchunk1_id)) != 0) {
-		fclose(file);
-		return NULL;
-	}
-
-	printf("-- subchunk1_id: fmt \n");
-
-	fread(&wav.fmt.subchunk1_size, sizeof(wav.fmt.subchunk1_size), 1, file);
-	printf("-- subchunk1_size: %u\n");
-
-	fread(&wav.fmt.audio_format, sizeof(wav.fmt.audio_format), 1, file);
-	printf("-- audio_format: %hu\n");
-
-	fread(&wav.fmt.num_channels, sizeof(wav.fmt.num_channels), 1, file);
-	printf("-- num_channels: %hu\n");
-
-	fread(&wav.fmt.sample_rate, sizeof(wav.fmt.sample_rate), 1, file);
-	printf("-- sample_rate: %hu\n");
-
-	fread(&wav.fmt.byte_rate, sizeof(wav.fmt.byte_rate), 1, file);
-	printf("-- byte_rate: %hu\n");
-
-	fread(&wav.fmt.block_align, sizeof(wav.fmt.block_align), 1, file);
-	printf("-- block_align: %hu\n");
-
-	fread(&wav.fmt.bits_per_sample, sizeof(wav.fmt.bits_per_sample), 1, file);
-	printf("-- bits_per_sample: %hu\n");
-
-	printf("DATA_CHUNK\n");
-
-	fread(&wav.data.subchunk2_id, sizeof(wav.data.subchunk2_id), 1, file);
-
-	printf("-- subchunk2_id: data\n");
-
-	fread(&wav.data.subchunk2_size, sizeof(wav.data.subchunk2_size), 1, file);
-
-	printf("-- subchunk2_size: %d\n", wav.data.subchunk2_size);
-
-	printf("SOUND_DATA:\n");
-	for (int i = 0; i < wav.data.subchunk2_size; ++i) {
-		fgetc(file);
-	}
-
-	printf("Data after sound data:\n");
-
-	/* It seems like this data is weirdly inconsistent
-	 * maybe we just keep everything as is after editing the
-	 * sound file or something
-	 *
-	 * there is also ID3 tags and other data for mp3 which is strange
-	 * and adds to the complexity to parse
-	 */
-	
-	unsigned char buff[5] = {0};	
-	buff[4] = '\0';
-	unsigned char buff2[5] = {0};	
-	buff2[4] = '\0';
-	uint32_t sz = 0;
-
-	const size_t a = fread(buff, 4, 1, file);
-	const size_t b = fread(&sz, 4, 1, file);
-	const size_t z = fread(buff2, 4, 1, file);
-
-	printf("ID: %s\n", buff);
-	printf("Size: %d\n", sz);
-	printf("List type ID: %s\n\n", buff2);
-
-	uint32_t sz2 = 0;
-	unsigned char buff3[5] = {0};
-	buff3[4] = '\0';
-	while (1) {
-		fread(buff3, 4, 1, file);
-		fread(&sz2, 4, 1, file);
-
-		if (memcmp(buff3, "IPRD", 4) == 0 ||
-		    memcmp(buff3, "IART", 4) == 0) {
-			sz2++;
-		}
+	while (!feof(file) && !ferror(file) ) {
+		unsigned char id[4] = {0};
 		
-		printf("%s\n", buff3);
-		printf("%d\n", sz2);
+		if ( fread(&id, sizeof(id), 1, file) != 1 ) break;
 
-		int flag = 0;
-		for (int i = 0; i < sz2; ++i) {
-			int c = fgetc(file);
-			if (c == EOF) {
-				flag = 1;
-				break;
-			}
-			printf("%c", c);
+		if (memcmp(id, "RIFF", sizeof(id)) == 0 ||
+		    memcmp(id, "RIFX", sizeof(id)) == 0)
+		{
+			if (!read_RIFF_chunk(wav, file)) break;
 		}
-		printf("\n");
-		if (flag) break;
+		else if (memcmp(id, "fmt ", sizeof(id)) == 0)
+		{
+			if (!read_FMT_chunk(wav, file)) break;
+		}
+		else if (memcmp(id, "data", sizeof(id)) == 0)
+		{
+			if (!read_DATA_chunk(wav, file)) break;
+		}
+		else
+		{
+			if (!read_EXTRA_chunk(wav, file, id)) break;
+		}
 	}
-	
+
 	if (ferror(file)) {
-		perror("\n\nI/O error when reading file.\n");
-	} else if (feof(file)) {
-		perror("\n\nEnd of file is reached.\n");
+		perror("I/O error when parsing WAV file.\n");
+		return 0;
+	} else if (!feof(file)) {
+		perror("Did not parse entire WAV file.\n");
+		return 0;
 	} else {
-		perror("\n\nEnd of file not reached.\n");
+		printf("WAV file read.\n");
 	}
 
 	fclose(file);
 	
-	return NULL;
+	return 1;
+}
+
+void print_WAV_file(struct WAV_file *wav)
+{
+	printf("RIFF_CHUNK:\n");
+	printf("-- id: RIFF\n");
+	printf("-- size: %d\n", wav->riff.size);
+	printf("-- format: WAVE\n");
+
+	printf("FMT_CHUNK:\n");
+	printf("-- id: fmt \n");
+	printf("-- size: %u\n", wav->fmt.size);
+	printf("-- audio_format: %hu\n", wav->fmt.audio_format);
+	printf("-- num_channels: %hu\n", wav->fmt.num_channels);
+	printf("-- sample_rate: %hu\n", wav->fmt.sample_rate);
+	printf("-- byte_rate: %hu\n", wav->fmt.byte_rate);
+	printf("-- block_align: %hu\n", wav->fmt.block_align);
+	printf("-- bits_per_sample: %hu\n", wav->fmt.bits_per_sample);
+
+	printf("DATA_CHUNK\n");
+	printf("-- id: data\n");
+	printf("-- size: %d\n", wav->data.size);
+
+	struct EXTRA_chunk *extra = wav->extra;
+
+	while (extra != NULL) {
+		printf("EXTRA_CHUNK:\n");
+
+		unsigned char buff[5] = {0};	
+		buff[4] = '\0';
+		memcpy(buff, extra->id, sizeof(extra->id));
+
+		printf("-- id: %s\n", buff);
+		printf("-- size: %d\n", extra->size);
+
+		extra = extra->next;
+	}
 }
 
 void WAV_file_write_sin_wave(
@@ -200,22 +217,22 @@ void WAV_file_write_sin_wave(
     if (wav == NULL) {
 	perror("Cannot write sin wave to WAV as WAV struct is NULL");   
         return;
-    } else if (wav->data.buff != NULL || wav->data.subchunk2_size != 0) {
+    } else if (wav->data.buff != NULL || wav->data.size != 0) {
         free(wav->data.buff);
         wav->data.buff = NULL;
-        wav->data.subchunk2_size = 0;
-        wav->riff.chunk_size = 36;
+        wav->data.size = 0;
+        wav->riff.size = 36;
     }
 
-	const uint32_t subchunk2_size =
+	const uint32_t size =
 		(wav->fmt.bits_per_sample / 8) 
 		* wav->fmt.num_channels
 		* wav->fmt.sample_rate
 		* duration;
 
-    wav->data.subchunk2_size = subchunk2_size;
-    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * subchunk2_size);
-	wav->riff.chunk_size = 36 + subchunk2_size;
+    wav->data.size = size;
+    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	wav->riff.size = 36 + size;
 
     // -6Db amplitude by default
     const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
@@ -225,7 +242,7 @@ void WAV_file_write_sin_wave(
 
     // Loop for the number of samples
     for (uint32_t sample_index = 0;
-         sample_index < wav->data.subchunk2_size /  (wav->fmt.num_channels * bytes_per_sample);
+         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
          sample_index++) {
 
         const double t = (double)sample_index * sample_period;
@@ -255,22 +272,22 @@ void WAV_file_write_binaural_wave(
     if (wav == NULL) {
         perror("Cannot write sin wave to WAV as WAV struct is NULL");   
         return;
-    } else if (wav->data.buff != NULL || wav->data.subchunk2_size != 0) {
+    } else if (wav->data.buff != NULL || wav->data.size != 0) {
         free(wav->data.buff);
         wav->data.buff = NULL;
-        wav->data.subchunk2_size = 0;
-        wav->riff.chunk_size = 36;
+        wav->data.size = 0;
+        wav->riff.size = 36;
     }
 
-	const uint32_t subchunk2_size =
+	const uint32_t size =
 		(wav->fmt.bits_per_sample / 8) 
 		* wav->fmt.num_channels
 		* wav->fmt.sample_rate
 		* duration;
 
-    wav->data.subchunk2_size = subchunk2_size;
-    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * subchunk2_size);
-	wav->riff.chunk_size = 36 + subchunk2_size;
+    wav->data.size = size;
+    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	wav->riff.size = 36 + size;
 
     // -6Db amplitude by default
     const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
@@ -281,7 +298,7 @@ void WAV_file_write_binaural_wave(
 
     // Loop for the number of samples
     for (uint32_t sample_index = 0;
-         sample_index < wav->data.subchunk2_size /  (wav->fmt.num_channels * bytes_per_sample);
+         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
          sample_index++) {
 
         const double t = (double)sample_index * sample_period;
@@ -307,12 +324,25 @@ void WAV_file_write_binaural_wave(
     }
 }
 
-void free_WAV_file(struct WAV_file *file) {
-    if (file == NULL) return;
-    if (file->data.buff == NULL) return;
-    file->riff.chunk_size = 36;
-    free(file->data.buff);
-    file->data.subchunk2_size = 0;
+void free_WAV_file(struct WAV_file *wav) {
+    if (wav == NULL) return;
+
+    if (wav->data.buff != NULL) {
+	free(wav->data.buff);
+	wav->riff.size -= wav->data.size;
+	wav->data.size = 0;
+    }
+
+    while (wav->extra != NULL) {
+	if (wav->extra->buff != NULL) {
+		free(wav->extra->buff);
+		wav->extra->buff = NULL;
+	}
+
+	struct EXTRA_chunk *t = wav->extra;
+	wav->extra = wav->extra->next;
+	free(t);
+    }
 }
 
 void write_WAV_to_file(
@@ -327,6 +357,7 @@ void write_WAV_to_file(
 	if (file == NULL) {
 		perror("File opening failed\n");
 		fclose(file);
+		return;
 	}
 
 	size_t riff_ret = fwrite(
@@ -339,6 +370,7 @@ void write_WAV_to_file(
 	if (riff_ret != 1) {
 		perror("Failed to write RIFF chunk\n");
 		fclose(file);
+		return;
 	}
 
 	size_t fmt_ret = fwrite(
@@ -351,6 +383,7 @@ void write_WAV_to_file(
 	if (fmt_ret != 1) {
 		perror("Failed to write FMT chunk\n");
 		fclose(file);
+		return;
 	}
 
 	size_t data_ret = fwrite(
@@ -363,18 +396,55 @@ void write_WAV_to_file(
 	if (data_ret != 1) {
 		perror("Failed to write DATA chunk\n");
 		fclose(file);
+		return;
 	}
 
 	size_t sound_data_ret = fwrite(
 			wav->data.buff,
 			sizeof(unsigned char),
-			wav->data.subchunk2_size,
+			wav->data.size,
 			file
-        );
+		);
 
-	if (sound_data_ret != wav->data.subchunk2_size) {
+	if (sound_data_ret != wav->data.size) {
 		perror("Failed to write sound data\n");
+		return;
+	}
+	
+	struct EXTRA_chunk *sentinel = wav->extra;
+
+	while (sentinel != NULL) {	
+		size_t extra_ret = fwrite(
+				&sentinel,
+				sizeof(sentinel)
+					- sizeof(sentinel->buff)
+					- sizeof(sentinel->next),
+				1,
+				file
+			);
+
+		if (extra_ret != 1) {
+			perror("Failed to write an EXTRA chunk\n");
+			fclose(file);
+			return;
+		}
+
+		size_t extra_data_ret = fwrite(
+				sentinel->buff,
+				sizeof(unsigned char),
+				sentinel->size,
+				file
+			);
+
+		if (extra_data_ret != sentinel->size) {
+			perror("Failed to write the data of an EXTRA chunk\n");
+			fclose(file);
+			return;
+		}
+
+		sentinel = sentinel->next;
 	}
 
-    fclose(file);
+
+	fclose(file);
 }
