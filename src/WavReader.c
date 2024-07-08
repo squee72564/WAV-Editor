@@ -42,9 +42,9 @@ void init_WAV_file(
 	};
 }
 
-static int read_RIFF_chunk(struct WAV_file *wav, FILE *file)
+static int read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
 {
-	memcpy(wav->riff.id, "RIFF", sizeof(wav->riff.id));
+	memcpy(wav->riff.id, id, sizeof(wav->riff.id));
 	fread(&wav->riff.size, sizeof(wav->riff.size), 1, file);
 	fread(&wav->riff.format, sizeof(wav->riff.format), 1, file);
 
@@ -130,7 +130,7 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 
 	if (file == NULL) {
 		perror("Failed to open file for read.\n");
-		fclose(file);
+		return 0;
 	}
 
 	while (!feof(file) && !ferror(file) ) {
@@ -141,7 +141,7 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 		if (memcmp(id, "RIFF", sizeof(id)) == 0 ||
 		    memcmp(id, "RIFX", sizeof(id)) == 0)
 		{
-			if (!read_RIFF_chunk(wav, file)) break;
+			if (!read_RIFF_chunk(wav, file, id)) break;
 		}
 		else if (memcmp(id, "fmt ", sizeof(id)) == 0)
 		{
@@ -163,8 +163,6 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 	} else if (!feof(file)) {
 		perror("Did not parse entire WAV file.\n");
 		return 0;
-	} else {
-		printf("WAV file read.\n");
 	}
 
 	fclose(file);
@@ -230,15 +228,15 @@ void WAV_file_write_sin_wave(
 		* wav->fmt.sample_rate
 		* duration;
 
-    wav->data.size = size;
-    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	wav->data.size = size;
+	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
 	wav->riff.size = 36 + size;
 
-    // -6Db amplitude by default
-    const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
-    const double sample_period = 1.0 / wav->fmt.sample_rate;
-    const double ang_freq = 2.0 * M_PI * freq;
-    const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+	// -6Db amplitude by default
+	const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double sample_period = 1.0 / wav->fmt.sample_rate;
+	const double ang_freq = 2.0 * M_PI * freq;
+	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
     // Loop for the number of samples
     for (uint32_t sample_index = 0;
@@ -285,16 +283,16 @@ void WAV_file_write_binaural_wave(
 		* wav->fmt.sample_rate
 		* duration;
 
-    wav->data.size = size;
-    wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	wav->data.size = size;
+	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
 	wav->riff.size = 36 + size;
 
-    // -6Db amplitude by default
-    const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
-    const double sample_period = 1.0 / wav->fmt.sample_rate;
-    const double ang_freq1 = 2.0 * M_PI * freq1;
-    const double ang_freq2 = 2.0 * M_PI * freq2;
-    const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+	// -6Db amplitude by default
+	const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double sample_period = 1.0 / wav->fmt.sample_rate;
+	const double ang_freq1 = 2.0 * M_PI * freq1;
+	const double ang_freq2 = 2.0 * M_PI * freq2;
+	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
     // Loop for the number of samples
     for (uint32_t sample_index = 0;
