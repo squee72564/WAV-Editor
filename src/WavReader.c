@@ -96,28 +96,49 @@ static int read_DATA_chunk(struct WAV_file *wav, FILE *file)
 
 static int read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chunk_id)
 {
-	struct EXTRA_chunk **extra = &wav->extra;
 
-	while (*extra != NULL) {
-		extra = &(*extra)->next;
-	}
+	// Copy data into new EXTRA_chunk struct to be appended to list of EXTRA chunks
+	struct EXTRA_chunk *extra = (struct EXTRA_chunk*)malloc(sizeof(struct EXTRA_chunk));
 
-	*extra = (struct EXTRA_chunk*)malloc(sizeof(struct EXTRA_chunk));
-
-	memcpy((*extra)->id, chunk_id, sizeof((*extra)->id));
-
-	if (fread(&(*extra)->size, 4, 1, file) != 1) {
-		free(*extra);
+	if (extra == NULL) {
 		return 0;
 	}
 
-	(*extra)->buff = (unsigned char*)malloc((*extra)->size);
+	memcpy(extra->id, chunk_id, sizeof(extra->id));
 
-	if (fread((*extra)->buff, (*extra)->size, 1, file) != 1) {
-		free((*extra)->buff);
-		free(*extra);
+	if (fread(&extra->size, sizeof(extra->size), 1, file) != 1) {
+		free(extra);
 		return 0;
 	}
+
+	extra->buff = (unsigned char*)malloc(extra->size);
+
+	if (extra->buff == NULL) {
+		free(extra);
+		return 0;
+	}
+
+	if (fread(extra->buff, extra->size, 1, file) != 1) {
+		free(extra->buff);
+		free(extra);
+		return 0;
+	}
+
+	extra->next = NULL;
+
+	// Set new EXTRA_chunk to last node in list
+	
+	if (wav->extra == NULL) {
+		wav->extra = extra;
+		return 1;
+	}
+
+	struct EXTRA_chunk *curr = wav->extra;
+	while (curr->next != NULL) {
+		curr = curr->next;
+	}
+
+	curr->next = extra;
 
 	return 1;
 }
