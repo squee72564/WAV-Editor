@@ -13,6 +13,10 @@
  * ----------------------------------------
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct RIFF_chunk {
 	unsigned char 	id[4];		// ascii letters "RIFF" for little-endian, "RIFX" for big-endian
 	uint32_t 	size;		// 36 + subchunk2_size
@@ -95,5 +99,9 @@ void write_WAV_to_file(
 		struct WAV_file *wav,
 		const char* file_name
 	);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
