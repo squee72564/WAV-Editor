@@ -126,7 +126,7 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 {
 	if (file_name == NULL) return 0;
 
-	FILE *file = fopen(file_name, "r");
+	FILE *file = fopen(file_name, "rb");
 
 	if (file == NULL) {
 		perror("Failed to open file for read.\n");
@@ -159,9 +159,11 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 
 	if (ferror(file)) {
 		perror("I/O error when parsing WAV file.\n");
+		fclose(file);
 		return 0;
 	} else if (!feof(file)) {
 		perror("Did not parse entire WAV file.\n");
+		fclose(file);
 		return 0;
 	}
 

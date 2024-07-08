@@ -19,8 +19,6 @@ int main(int argc, char** argv)
 
 	print_WAV_file(&wav);
 
-	print_WAV_file_db(&wav);
-
 	free_WAV_file(&wav);
 
 	return 0;
