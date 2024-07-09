@@ -76,7 +76,7 @@ static int read_DATA_chunk(struct WAV_file *wav, FILE *file)
 	memcpy(wav->data.id, "data", sizeof(wav->data.id));
 	fread(&wav->data.size, sizeof(wav->data.size), 1, file);
 
-	wav->data.buff = (unsigned char*)malloc(wav->data.size);
+	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * wav->data.size);
 
 	if (wav->data.buff == NULL ) {
 		perror("Could not alloc wav data buffer.\n");
@@ -228,6 +228,54 @@ void print_WAV_file(struct WAV_file *wav)
 
 		extra = extra->next;
 	}
+}
+
+typedef union {
+	int8_t  i8;
+	int16_t i16;
+	int32_t i32;
+
+} SampleUnion;
+
+double get_WAV_max_db(struct WAV_file *wav)
+{
+	if (wav == NULL) {
+		perror("Error: Cannot get max Db; wav is NULL.\n");
+		return -999.0f;
+	} else if (wav->data.buff == NULL) {
+		perror("Error: Cannot get max Db; wav music data is NULL.\n");
+		return -999.0f;
+	}
+	
+	int64_t max_amp = 0;
+	uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+
+	// Union to hold sample bytes and interpret "dynamically"
+	SampleUnion sample;
+	sample.i32 = 0;
+
+	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
+		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
+
+		int64_t t = 0;
+		switch (bytes_per_sample) {
+			case 1:
+				t = sample.i8;
+				break;
+			case 2:
+				t = sample.i16;
+				break;
+			case 4:
+				t = sample.i32;
+				break;
+		}
+
+		t = abs(t);
+		if (t > max_amp) max_amp = t;
+	}
+
+	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
 }
 
 void WAV_file_write_sin_wave(
