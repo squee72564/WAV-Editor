@@ -13,11 +13,22 @@ int main(void) {
 		16	// bits per sample
 	);
 
-	WAV_file_write_sin_wave(&wav, 174.0, 20);
+	WAV_file_write_sin_wave(
+			&wav,
+			174.0f,
+			20,
+			-6.0f
+		);
 
 	write_WAV_to_file(&wav, "test-sin.wav");
 
-	WAV_file_write_binaural_wave(&wav, 174.0, 164.0, 20);
+	WAV_file_write_binaural_wave(
+			&wav,
+			174.0f,
+			164.0f,
+			20,
+			-1.0f
+		);
 
 	write_WAV_to_file(&wav, "test-binaural.wav");
 

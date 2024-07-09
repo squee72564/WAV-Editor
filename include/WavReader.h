@@ -85,14 +85,16 @@ double get_WAV_max_db(struct WAV_file * wav);
 void WAV_file_write_sin_wave(
 		struct WAV_file *file,
 		double frequency,
-		uint32_t duration
+		uint32_t duration,
+		float db
 	);
 
 void WAV_file_write_binaural_wave(
 		struct WAV_file *wav,
 		double frequency1,
 		double frequency2,
-		uint32_t duration
+		uint32_t duration,
+		float db 
 	);
 
 void free_WAV_file(struct WAV_file *wav);

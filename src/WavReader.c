@@ -281,17 +281,20 @@ double get_WAV_max_db(struct WAV_file *wav)
 void WAV_file_write_sin_wave(
         struct WAV_file *wav,
         double freq,
-        uint32_t duration)
+        uint32_t duration,
+	float db)
 {
-    if (wav == NULL) {
-	perror("Cannot write sin wave to WAV as WAV struct is NULL");   
-        return;
-    } else if (wav->data.buff != NULL || wav->data.size != 0) {
-        free(wav->data.buff);
-        wav->data.buff = NULL;
-        wav->data.size = 0;
-        wav->riff.size = 36;
-    }
+	if (wav == NULL) {
+		perror("Cannot write sin wave to WAV as WAV struct is NULL");   
+		return;
+	} else if (wav->data.buff != NULL || wav->data.size != 0) {
+		free(wav->data.buff);
+		wav->data.buff = NULL;
+		wav->data.size = 0;
+		wav->riff.size = 36;
+	}
+
+	if (db > 0.0f) db = 0.0f;
 
 	const uint32_t size =
 		(wav->fmt.bits_per_sample / 8) 
@@ -304,7 +307,7 @@ void WAV_file_write_sin_wave(
 	wav->riff.size = 36 + size;
 
 	// -6Db amplitude by default
-	const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
 	const double sample_period = 1.0 / wav->fmt.sample_rate;
 	const double ang_freq = 2.0 * M_PI * freq;
 	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
@@ -336,17 +339,20 @@ void WAV_file_write_binaural_wave(
         struct WAV_file *wav,
         double freq1,
         double freq2,
-        uint32_t duration)
+        uint32_t duration,
+	float db)
 {
-    if (wav == NULL) {
-        perror("Cannot write sin wave to WAV as WAV struct is NULL");   
-        return;
-    } else if (wav->data.buff != NULL || wav->data.size != 0) {
-        free(wav->data.buff);
-        wav->data.buff = NULL;
-        wav->data.size = 0;
-        wav->riff.size = 36;
-    }
+	if (wav == NULL) {
+		perror("Cannot write sin wave to WAV as WAV struct is NULL");   
+		return;
+	} else if (wav->data.buff != NULL || wav->data.size != 0) {
+		free(wav->data.buff);
+		wav->data.buff = NULL;
+		wav->data.size = 0;
+		wav->riff.size = 36;
+	}
+
+	if (db > 0.0f) db = 0.0f;
 
 	const uint32_t size =
 		(wav->fmt.bits_per_sample / 8) 
@@ -359,7 +365,7 @@ void WAV_file_write_binaural_wave(
 	wav->riff.size = 36 + size;
 
 	// -6Db amplitude by default
-	const double amp = pow(10, -6.0 / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
 	const double sample_period = 1.0 / wav->fmt.sample_rate;
 	const double ang_freq1 = 2.0 * M_PI * freq1;
 	const double ang_freq2 = 2.0 * M_PI * freq2;
