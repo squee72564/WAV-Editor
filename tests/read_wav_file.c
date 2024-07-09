@@ -19,6 +19,8 @@ int main(int argc, char** argv)
 
 	print_WAV_file(&wav);
 
+	printf("Wav file db: %.2f dB.\n", get_WAV_max_db(&wav));
+
 	free_WAV_file(&wav);
 
 	return 0;
