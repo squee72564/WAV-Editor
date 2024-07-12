@@ -42,7 +42,7 @@ void init_WAV_file(
 	};
 }
 
-static int read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
+static WAV_State read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
 {
 	memcpy(wav->riff.id, id, sizeof(wav->riff.id));
 	fread(&wav->riff.size, sizeof(wav->riff.size), 1, file);
@@ -50,14 +50,14 @@ static int read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
 
 	if (memcmp(&wav->riff.format, "WAVE", sizeof(wav->riff.format) != 0)) {
 		fclose(file);
-		return 0;
+		return Error;
 	}
 
-	return 1;
+	return Success;
 	
 }
 
-static int read_FMT_chunk(struct WAV_file *wav, FILE *file)
+static WAV_State read_FMT_chunk(struct WAV_file *wav, FILE *file)
 {
 	memcpy(wav->fmt.id, "fmt ", sizeof(wav->fmt.id));
 	fread(&wav->fmt.size, sizeof(wav->fmt.size), 1, file);
@@ -68,10 +68,10 @@ static int read_FMT_chunk(struct WAV_file *wav, FILE *file)
 	fread(&wav->fmt.block_align, sizeof(wav->fmt.block_align), 1, file);
 	fread(&wav->fmt.bits_per_sample, sizeof(wav->fmt.bits_per_sample), 1, file);
 
-	return 1;
+	return Success;
 }
 
-static int read_DATA_chunk(struct WAV_file *wav, FILE *file)
+static WAV_State read_DATA_chunk(struct WAV_file *wav, FILE *file)
 {
 	memcpy(wav->data.id, "data", sizeof(wav->data.id));
 	fread(&wav->data.size, sizeof(wav->data.size), 1, file);
@@ -81,47 +81,47 @@ static int read_DATA_chunk(struct WAV_file *wav, FILE *file)
 	if (wav->data.buff == NULL ) {
 		perror("Could not alloc wav data buffer.\n");
 		fclose(file);
-		return 0;
+		return Error;
 	}
 
 	if (fread(wav->data.buff, wav->data.size, 1, file) != 1) {
 		perror("Could not write to wav data buffer.\n");
 		fclose(file);
 		free(wav->data.buff);	
-		return 0;
+		return Error;
 	}
 	
-	return 1;
+	return Success;
 }
 
-static int read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chunk_id)
+static WAV_State read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chunk_id)
 {
 
 	// Copy data into new EXTRA_chunk struct to be appended to list of EXTRA chunks
 	struct EXTRA_chunk *extra = (struct EXTRA_chunk*)malloc(sizeof(struct EXTRA_chunk));
 
 	if (extra == NULL) {
-		return 0;
+		return Error;
 	}
 
 	memcpy(extra->id, chunk_id, sizeof(extra->id));
 
 	if (fread(&extra->size, sizeof(extra->size), 1, file) != 1) {
 		free(extra);
-		return 0;
+		return Error;
 	}
 
 	extra->buff = (unsigned char*)malloc(extra->size);
 
 	if (extra->buff == NULL) {
 		free(extra);
-		return 0;
+		return Error;
 	}
 
 	if (fread(extra->buff, extra->size, 1, file) != 1) {
 		free(extra->buff);
 		free(extra);
-		return 0;
+		return Error;
 	}
 
 	extra->next = NULL;
@@ -130,7 +130,7 @@ static int read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chu
 	
 	if (wav->extra == NULL) {
 		wav->extra = extra;
-		return 1;
+		return Success;
 	}
 
 	struct EXTRA_chunk *curr = wav->extra;
@@ -140,23 +140,24 @@ static int read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned char* chu
 
 	curr->next = extra;
 
-	return 1;
+	return Success;
 }
 
-int read_WAV_file(struct WAV_file *wav, char *file_name)
+WAV_State read_WAV_file(struct WAV_file *wav, char *file_name)
 {
-	if (file_name == NULL) return 0;
+	if (file_name == NULL) return Error;
 
 	FILE *file = fopen(file_name, "rb");
 
 	if (file == NULL) {
 		perror("Failed to open file for read.\n");
-		return 0;
+		return Error;
 	}
 
 	while (!feof(file) && !ferror(file) ) {
 		unsigned char id[4] = {0};
 		
+		// Read the 4 bytes for the id of the next chunk
 		if ( fread(&id, sizeof(id), 1, file) != 1 ) break;
 
 		if (memcmp(id, "RIFF", sizeof(id)) == 0 ||
@@ -181,16 +182,16 @@ int read_WAV_file(struct WAV_file *wav, char *file_name)
 	if (ferror(file)) {
 		perror("I/O error when parsing WAV file.\n");
 		fclose(file);
-		return 0;
+		return Error;
 	} else if (!feof(file)) {
 		perror("Did not parse entire WAV file.\n");
 		fclose(file);
-		return 0;
+		return Error;
 	}
 
 	fclose(file);
 	
-	return 1;
+	return Success;
 }
 
 void print_WAV_file(struct WAV_file *wav)
@@ -288,15 +289,14 @@ double get_WAV_max_db(struct WAV_file *wav)
 	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
 }
 
-void WAV_file_write_sin_wave(
+WAV_State WAV_file_write_sin_wave(
         struct WAV_file *wav,
         double freq,
         uint32_t duration,
 	float db)
 {
 	if (wav == NULL) {
-		perror("Cannot write sin wave to WAV as WAV struct is NULL");   
-		return;
+		return Error;
 	} else if (wav->data.buff != NULL || wav->data.size != 0) {
 		free(wav->data.buff);
 		wav->data.buff = NULL;
@@ -314,6 +314,9 @@ void WAV_file_write_sin_wave(
 
 	wav->data.size = size;
 	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	
+	if (wav->data.buff == NULL) return Error;
+
 	wav->riff.size = 36 + size;
 
 	// -6Db amplitude by default
@@ -343,9 +346,11 @@ void WAV_file_write_sin_wave(
             }
         }
     }
+
+    return Success;
 }
 
-void WAV_file_write_binaural_wave(
+WAV_State WAV_file_write_binaural_wave(
         struct WAV_file *wav,
         double freq1,
         double freq2,
@@ -353,8 +358,7 @@ void WAV_file_write_binaural_wave(
 	float db)
 {
 	if (wav == NULL) {
-		perror("Cannot write sin wave to WAV as WAV struct is NULL");   
-		return;
+		return Error;
 	} else if (wav->data.buff != NULL || wav->data.size != 0) {
 		free(wav->data.buff);
 		wav->data.buff = NULL;
@@ -372,6 +376,9 @@ void WAV_file_write_binaural_wave(
 
 	wav->data.size = size;
 	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	
+	if (wav->data.buff == NULL) return Error;
+
 	wav->riff.size = 36 + size;
 
 	// -6Db amplitude by default
@@ -407,6 +414,8 @@ void WAV_file_write_binaural_wave(
             }
         }
     }
+
+    return Success;
 }
 
 void free_WAV_file(struct WAV_file *wav) {
@@ -430,19 +439,19 @@ void free_WAV_file(struct WAV_file *wav) {
     }
 }
 
-void write_WAV_to_file(
+WAV_State write_WAV_to_file(
         struct WAV_file* wav,
         const char* file_name)
 {
-	if (wav == NULL) return;
-	if (file_name == NULL) return;
+	if (wav == NULL) return Error;
+	if (file_name == NULL) return Error;
 
 	FILE* file = fopen(file_name, "w");
 
 	if (file == NULL) {
 		perror("File opening failed\n");
 		fclose(file);
-		return;
+		return Error;
 	}
 
 	size_t riff_ret = fwrite(
@@ -455,7 +464,7 @@ void write_WAV_to_file(
 	if (riff_ret != 1) {
 		perror("Failed to write RIFF chunk\n");
 		fclose(file);
-		return;
+		return Error;
 	}
 
 	size_t fmt_ret = fwrite(
@@ -468,7 +477,7 @@ void write_WAV_to_file(
 	if (fmt_ret != 1) {
 		perror("Failed to write FMT chunk\n");
 		fclose(file);
-		return;
+		return Error;
 	}
 
 	size_t data_ret = fwrite(
@@ -481,7 +490,7 @@ void write_WAV_to_file(
 	if (data_ret != 1) {
 		perror("Failed to write DATA chunk\n");
 		fclose(file);
-		return;
+		return Error;
 	}
 
 	size_t sound_data_ret = fwrite(
@@ -493,7 +502,7 @@ void write_WAV_to_file(
 
 	if (sound_data_ret != wav->data.size) {
 		perror("Failed to write sound data\n");
-		return;
+		return Error;
 	}
 	
 	struct EXTRA_chunk *sentinel = wav->extra;
@@ -511,7 +520,7 @@ void write_WAV_to_file(
 		if (extra_ret != 1) {
 			perror("Failed to write an EXTRA chunk\n");
 			fclose(file);
-			return;
+			return Error;
 		}
 
 		size_t extra_data_ret = fwrite(
@@ -524,7 +533,7 @@ void write_WAV_to_file(
 		if (extra_data_ret != sentinel->size) {
 			perror("Failed to write the data of an EXTRA chunk\n");
 			fclose(file);
-			return;
+			return Error;
 		}
 
 		sentinel = sentinel->next;
@@ -532,4 +541,6 @@ void write_WAV_to_file(
 
 
 	fclose(file);
+
+	return Success;
 }

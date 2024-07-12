@@ -17,6 +17,12 @@
 extern "C" {
 #endif
 
+typedef enum {
+	Error = 0,
+	Success,
+	NumStates,
+} WAV_State;
+
 struct RIFF_chunk {
 	unsigned char 	id[4];		// ascii letters "RIFF" for little-endian, "RIFX" for big-endian
 	uint32_t 	size;		// 36 + subchunk2_size
@@ -73,7 +79,7 @@ void init_WAV_file(
 		uint16_t bits_per_sample
 	);
 
-int read_WAV_file(
+WAV_State read_WAV_file(
 		struct WAV_file *wav,
 		char *file_name
 	);
@@ -84,14 +90,14 @@ uint64_t get_WAV_max_amp(struct WAV_file *wav);
 
 double get_WAV_max_db(struct WAV_file *wav);
 
-void WAV_file_write_sin_wave(
+WAV_State WAV_file_write_sin_wave(
 		struct WAV_file *file,
 		double frequency,
 		uint32_t duration,
 		float db
 	);
 
-void WAV_file_write_binaural_wave(
+WAV_State WAV_file_write_binaural_wave(
 		struct WAV_file *wav,
 		double frequency1,
 		double frequency2,
@@ -101,7 +107,7 @@ void WAV_file_write_binaural_wave(
 
 void free_WAV_file(struct WAV_file *wav);
 
-void write_WAV_to_file(
+WAV_State write_WAV_to_file(
 		struct WAV_file *wav,
 		const char* file_name
 	);
