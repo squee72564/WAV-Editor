@@ -12,15 +12,19 @@ int main(int argc, char** argv)
 	struct WAV_file wav;
 	memset(&wav, 0, sizeof(wav));
 
+	// Read wav file into struct
 	if (!read_WAV_file(&wav, argv[1])) {
 		perror("Error: Could not read wav file!\n");
 		return 1;
 	}
 
+	printf("\nReading wav file: %s\n\n", argv[1]);
+	
 	print_WAV_file(&wav);
 
-	printf("Wav file db: %.2f dB.\n", get_WAV_max_db(&wav));
+	printf("\nWav file max db: %.2f dB.\n\n", get_WAV_max_db(&wav));
 
+	// Free data allocated for waveform & EXTRA_chunk(s)
 	free_WAV_file(&wav);
 
 	return 0;
