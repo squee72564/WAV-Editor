@@ -13,7 +13,7 @@ int main(int argc, char** argv)
 	memset(&wav, 0, sizeof(wav));
 
 	// Read wav file into struct
-	if (!read_WAV_file(&wav, argv[1])) {
+	if (read_WAV_file(&wav, argv[1]) == Error) {
 		perror("Error: Could not read wav file!\n");
 		return 1;
 	}

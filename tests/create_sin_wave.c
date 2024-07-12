@@ -7,6 +7,10 @@ int main(void) {
 
 	printf("\nCreating example sin and binaural wav files:\n\n");
 
+	char file1_name[] = "test-sin.wav\0";
+	char file2_name[] = "test-binaural.wav\0";
+	WAV_State ret = Error;
+
 	struct WAV_file wav;
 	memset(&wav, 0, sizeof(wav));
 
@@ -19,25 +23,28 @@ int main(void) {
 		16	// bits per sample
 	);
 
-	char file1[] = "test-sin.wav\0";
-	char file2[] = "test-binaural.wav\0";
-
-	// Write sine wave to the wav struct
-	WAV_file_write_sin_wave(
+	ret = WAV_file_write_sin_wave(
 			&wav,
 			174.0f, // frequency
 			15,	// duration (sec)
 			-6.0f	// max decibel level
 		);
 
-	write_WAV_to_file(&wav, file1);
+	if (ret == Error) {
+		perror("ERROR: Could not write sin wave to WAV struct!\n");   
+		return 1;
+	}
 
-	printf("\nWrote sin wav to file: %s\n\n", file1);
+	if (write_WAV_to_file(&wav, file1_name) == Error) {
+		fprintf(stderr, "ERROR: Could not write WAV struct to %s!\n", file1_name);   
+		return 1;
+	}
+
+	printf("\nWrote sin wav to file: %s\n\n", file1_name);
 
 	print_WAV_file(&wav);
 
-	// Write binaural wave to the wav struct
-	WAV_file_write_binaural_wave(
+	ret = WAV_file_write_binaural_wave(
 			&wav,
 			174.0f, // frequency 1
 			164.0f,	// frequency 2
@@ -45,9 +52,17 @@ int main(void) {
 			-1.0f	// max decibel level
 		);
 
-	write_WAV_to_file(&wav, file2);
+	if (ret == Error) {
+		perror("ERROR: Could not write sin wave to .wav file!\n");   
+		return 1;
+	}
 
-	printf("\nWrote binaural wav to file: %s\n\n", file2);
+	if (write_WAV_to_file(&wav, file2_name) == Error) {
+		fprintf(stderr, "ERROR: Could not write WAV struct to %s!\n", file2_name);   
+		return 1;
+	}
+
+	printf("\nWrote binaural wav to file: %s\n\n", file2_name);
 
 	print_WAV_file(&wav);
 
