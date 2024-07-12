@@ -230,29 +230,21 @@ void print_WAV_file(struct WAV_file *wav)
 	}
 }
 
-typedef union {
+union SampleUnion {
 	int8_t  i8;
 	int16_t i16;
+	int32_t i24;
 	int32_t i32;
+};
 
-} SampleUnion;
-
-double get_WAV_max_db(struct WAV_file *wav)
+uint64_t get_WAV_max_amp(struct WAV_file *wav)
 {
-	if (wav == NULL) {
-		perror("Error: Cannot get max Db; wav is NULL.\n");
-		return -999.0f;
-	} else if (wav->data.buff == NULL) {
-		perror("Error: Cannot get max Db; wav music data is NULL.\n");
-		return -999.0f;
-	}
-	
-	int64_t max_amp = 0;
 	uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
+	int64_t max_amp = 0;
 
 	// Union to hold sample bytes and interpret "dynamically"
-	SampleUnion sample;
+	union SampleUnion sample;
 	sample.i32 = 0;
 
 	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
@@ -266,6 +258,9 @@ double get_WAV_max_db(struct WAV_file *wav)
 			case 2:
 				t = sample.i16;
 				break;
+			case 3:
+				t = sample.i24;
+				break;
 			case 4:
 				t = sample.i32;
 				break;
@@ -274,6 +269,21 @@ double get_WAV_max_db(struct WAV_file *wav)
 		t = abs(t);
 		if (t > max_amp) max_amp = t;
 	}
+
+	return max_amp;
+}
+
+double get_WAV_max_db(struct WAV_file *wav)
+{
+	if (wav == NULL) {
+		perror("Error: Cannot get max Db; wav is NULL.\n");
+		return -999.0f;
+	} else if (wav->data.buff == NULL) {
+		perror("Error: Cannot get max Db; wav music data is NULL.\n");
+		return -999.0f;
+	}
+	
+	int64_t max_amp = get_WAV_max_amp(wav);
 
 	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
 }
