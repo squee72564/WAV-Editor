@@ -274,7 +274,7 @@ uint64_t get_WAV_max_amp(struct WAV_file *wav)
 	return max_amp;
 }
 
-WAV_State set_WAV_max_amp(struct WAV_file *wav, double db)
+WAV_State normalize_WAV_max_db(struct WAV_file *wav, double db)
 {
 	if (wav == NULL) return Error;
 	if (wav->data.buff == NULL || wav->data.size == 0) return Error;

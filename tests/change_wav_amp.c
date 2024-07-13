@@ -9,8 +9,8 @@ int main(void) {
 
 	const char file1_name[] = "test-sin-amp1.wav\0";
 	const char file2_name[] = "test-sin-amp2.wav\0";
-	const double old_amp = -6.0f;
-	const double new_amp = -16.0f;
+	const double old_db = -6.0f;
+	const double new_db = -16.0f;
 	WAV_State ret = Error;
 
 	struct WAV_file wav;
@@ -29,7 +29,7 @@ int main(void) {
 			&wav,
 			174.0f, // frequency
 			15,	// duration (sec)
-			old_amp	// max decibel level
+			old_db	// max decibel level
 		);
 
 	if (ret == Error) {
@@ -42,15 +42,15 @@ int main(void) {
 		return 1;
 	}
 
-	printf("\nWrote sin wav to file at %.2fdb: %s\n\n", old_amp, file1_name);
+	printf("\nWrote sin wav to file at %.2fdb: %s\n\n", old_db, file1_name);
 
 	print_WAV_file(&wav);
 
 	printf("\nChanging sin wav amplitude to -32.0db\n\n");
 
 
-	if (set_WAV_max_amp(&wav, new_amp) == Error) {
-		fprintf(stderr, "ERROR: Could not change WAV struct to %d db!\n", new_amp);   
+	if (normalize_WAV_max_db(&wav, new_db) == Error) {
+		fprintf(stderr, "ERROR: Could not change WAV struct to %d db!\n", new_db);   
 		return 1;
 	}
 
@@ -61,7 +61,7 @@ int main(void) {
 
 	print_WAV_file(&wav);
 
-	printf("\nWrote sin wav to file at %.2fdb: %s\n\n", new_amp, file2_name);
+	printf("\nWrote sin wav to file at %.2fdb: %s\n\n", new_db, file2_name);
 
 	// Free data allocated for waveform & EXTRA_chunk(s)
 	free_WAV_file(&wav);
