@@ -88,6 +88,8 @@ void print_WAV_file(struct WAV_file *wav);
 
 uint64_t get_WAV_max_amp(struct WAV_file *wav);
 
+WAV_State set_WAV_max_amp(struct WAV_file *wav, double);
+
 double get_WAV_max_db(struct WAV_file *wav);
 
 WAV_State WAV_file_write_sin_wave(

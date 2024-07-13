@@ -240,7 +240,7 @@ union SampleUnion {
 
 uint64_t get_WAV_max_amp(struct WAV_file *wav)
 {
-	uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
 	int64_t max_amp = 0;
 
@@ -274,6 +274,48 @@ uint64_t get_WAV_max_amp(struct WAV_file *wav)
 	return max_amp;
 }
 
+WAV_State set_WAV_max_amp(struct WAV_file *wav, double db)
+{
+	if (wav == NULL) return Error;
+	if (wav->data.buff == NULL || wav->data.size == 0) return Error;
+	if (db > 0.0f) db = 0.0f;
+
+	const uint64_t max_amp = get_WAV_max_amp(wav);
+	const int16_t new_max_amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	
+	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+	union SampleUnion sample;
+	sample.i32 = 0;
+
+	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
+		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
+
+		int64_t t = 0;
+		switch (bytes_per_sample) {
+			case 1:
+				t = sample.i8;
+				break;
+			case 2:
+				t = sample.i16;
+				break;
+			case 3:
+				t = sample.i24;
+				break;
+			case 4:
+				t = sample.i32;
+				break;
+		}
+
+		const double p = (double)t / (double)max_amp;
+		t = new_max_amp * p;
+		
+		memcpy(&wav->data.buff[i*bytes_per_sample], &t, bytes_per_sample);
+	}
+	
+	return Success;
+}
+
 double get_WAV_max_db(struct WAV_file *wav)
 {
 	if (wav == NULL) {
@@ -284,7 +326,7 @@ double get_WAV_max_db(struct WAV_file *wav)
 		return -999.0f;
 	}
 	
-	int64_t max_amp = get_WAV_max_amp(wav);
+	const int64_t max_amp = get_WAV_max_amp(wav);
 
 	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
 }
@@ -432,7 +474,7 @@ void free_WAV_file(struct WAV_file *wav) {
 		free(wav->extra->buff);
 		wav->extra->buff = NULL;
 	}
-
+ 
 	struct EXTRA_chunk *t = wav->extra;
 	wav->extra = wav->extra->next;
 	free(t);
