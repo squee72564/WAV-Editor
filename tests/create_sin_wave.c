@@ -16,14 +16,14 @@ int main(void) {
 
 	// Use this to init the skeleton
 	// of a .wav WITHOUT any waveform data
-	init_WAV_file(
+	WAV_init(
 		&wav,
 		2,	// channels
 		44100,	// sample rate
 		16	// bits per sample
 	);
 
-	ret = WAV_file_write_sin_wave(
+	ret = WAV_write_sin_wave(
 			&wav,
 			174.0f, // frequency
 			15,	// duration (sec)
@@ -35,16 +35,16 @@ int main(void) {
 		return 1;
 	}
 
-	if (write_WAV_to_file(&wav, file1_name) == Error) {
+	if (WAV_write_to_file(&wav, file1_name) == Error) {
 		fprintf(stderr, "ERROR: Could not write WAV struct to %s!\n", file1_name);   
 		return 1;
 	}
 
 	printf("\nWrote sin wav to file: %s\n\n", file1_name);
 
-	print_WAV_file(&wav);
+	WAV_print(&wav);
 
-	ret = WAV_file_write_binaural_wave(
+	ret = WAV_write_binaural_wave(
 			&wav,
 			174.0f, // frequency 1
 			164.0f,	// frequency 2
@@ -57,19 +57,19 @@ int main(void) {
 		return 1;
 	}
 
-	if (write_WAV_to_file(&wav, file2_name) == Error) {
+	if (WAV_write_to_file(&wav, file2_name) == Error) {
 		fprintf(stderr, "ERROR: Could not write WAV struct to %s!\n", file2_name);   
 		return 1;
 	}
 
 	printf("\nWrote binaural wav to file: %s\n\n", file2_name);
 
-	print_WAV_file(&wav);
+	WAV_print(&wav);
 
 	printf("\n");
 
 	// Free data allocated for waveform & EXTRA_chunk(s)
-	free_WAV_file(&wav);
+	WAV_free(&wav);
 
 	return 0;
 }

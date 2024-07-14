@@ -72,34 +72,34 @@ struct WAV_file {
  * ----------------------------------------
  */
 
-void init_WAV_file(
+void WAV_init(
 		struct WAV_file *wav,
 		uint16_t num_channels,
 		uint32_t sample_rate,
 		uint16_t bits_per_sample
 	);
 
-WAV_State read_WAV_file(
+WAV_State WAV_read_file(
 		struct WAV_file *wav,
 		char *file_name
 	);
 
-void print_WAV_file(struct WAV_file *wav);
+void WAV_print(struct WAV_file *wav);
 
-uint64_t get_WAV_max_amp(struct WAV_file *wav);
+uint64_t WAV_get_max_amp(struct WAV_file *wav);
 
-WAV_State normalize_WAV_max_db(struct WAV_file *wav, double db);
+WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db);
 
-double get_WAV_max_db(struct WAV_file *wav);
+double WAV_get_max_db(struct WAV_file *wav);
 
-WAV_State WAV_file_write_sin_wave(
+WAV_State WAV_write_sin_wave(
 		struct WAV_file *file,
 		double frequency,
 		uint32_t duration,
 		float db
 	);
 
-WAV_State WAV_file_write_binaural_wave(
+WAV_State WAV_write_binaural_wave(
 		struct WAV_file *wav,
 		double frequency1,
 		double frequency2,
@@ -107,9 +107,9 @@ WAV_State WAV_file_write_binaural_wave(
 		float db 
 	);
 
-void free_WAV_file(struct WAV_file *wav);
+void WAV_free(struct WAV_file *wav);
 
-WAV_State write_WAV_to_file(
+WAV_State WAV_write_to_file(
 		struct WAV_file *wav,
 		const char* file_name
 	);

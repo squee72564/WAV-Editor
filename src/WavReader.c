@@ -5,7 +5,7 @@
 #include <string.h>
 #include <math.h>
 
-void init_WAV_file(
+void WAV_init(
 		struct WAV_file *wav,
 		uint16_t num_channels,
 		uint32_t sample_rate,
@@ -143,7 +143,7 @@ static WAV_State read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned cha
 	return Success;
 }
 
-WAV_State read_WAV_file(struct WAV_file *wav, char *file_name)
+WAV_State WAV_read_file(struct WAV_file *wav, char *file_name)
 {
 	if (file_name == NULL) return Error;
 
@@ -194,7 +194,7 @@ WAV_State read_WAV_file(struct WAV_file *wav, char *file_name)
 	return Success;
 }
 
-void print_WAV_file(struct WAV_file *wav)
+void WAV_print(struct WAV_file *wav)
 {
 	printf("RIFF_CHUNK:\n");
 	printf("-- id: RIFF\n");
@@ -238,7 +238,7 @@ union SampleUnion {
 	int32_t i32;
 };
 
-uint64_t get_WAV_max_amp(struct WAV_file *wav)
+uint64_t WAV_get_max_amp(struct WAV_file *wav)
 {
 	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
@@ -274,13 +274,13 @@ uint64_t get_WAV_max_amp(struct WAV_file *wav)
 	return max_amp;
 }
 
-WAV_State normalize_WAV_max_db(struct WAV_file *wav, double db)
+WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db)
 {
 	if (wav == NULL) return Error;
 	if (wav->data.buff == NULL || wav->data.size == 0) return Error;
 	if (db > 0.0f) db = 0.0f;
 
-	const uint64_t max_amp = get_WAV_max_amp(wav);
+	const uint64_t max_amp = WAV_get_max_amp(wav);
 	const int16_t new_max_amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
 	
 	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
@@ -316,7 +316,7 @@ WAV_State normalize_WAV_max_db(struct WAV_file *wav, double db)
 	return Success;
 }
 
-double get_WAV_max_db(struct WAV_file *wav)
+double WAV_get_max_db(struct WAV_file *wav)
 {
 	if (wav == NULL) {
 		perror("Error: Cannot get max Db; wav is NULL.\n");
@@ -326,12 +326,12 @@ double get_WAV_max_db(struct WAV_file *wav)
 		return -999.0f;
 	}
 	
-	const int64_t max_amp = get_WAV_max_amp(wav);
+	const int64_t max_amp = WAV_get_max_amp(wav);
 
 	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
 }
 
-WAV_State WAV_file_write_sin_wave(
+WAV_State WAV_write_sin_wave(
         struct WAV_file *wav,
         double freq,
         uint32_t duration,
@@ -392,7 +392,7 @@ WAV_State WAV_file_write_sin_wave(
     return Success;
 }
 
-WAV_State WAV_file_write_binaural_wave(
+WAV_State WAV_write_binaural_wave(
         struct WAV_file *wav,
         double freq1,
         double freq2,
@@ -460,7 +460,7 @@ WAV_State WAV_file_write_binaural_wave(
     return Success;
 }
 
-void free_WAV_file(struct WAV_file *wav) {
+void WAV_free(struct WAV_file *wav) {
     if (wav == NULL) return;
 
     if (wav->data.buff != NULL) {
@@ -481,7 +481,7 @@ void free_WAV_file(struct WAV_file *wav) {
     }
 }
 
-WAV_State write_WAV_to_file(
+WAV_State WAV_write_to_file(
         struct WAV_file* wav,
         const char* file_name)
 {
