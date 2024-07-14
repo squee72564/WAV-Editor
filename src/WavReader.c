@@ -5,6 +5,14 @@
 #include <string.h>
 #include <math.h>
 
+// Union to hold sample bytes and interpret "dynamically"
+union SampleUnion {
+	int8_t  i8;
+	int16_t i16;
+	int32_t i24;
+	int32_t i32;
+};
+
 void WAV_init(
 		struct WAV_file *wav,
 		uint16_t num_channels,
@@ -40,6 +48,264 @@ void WAV_init(
 		.extra = NULL,
 
 	};
+}
+
+void WAV_print(struct WAV_file *wav)
+{
+	printf("RIFF_CHUNK:\n");
+	printf("-- id: RIFF\n");
+	printf("-- size: %d\n", wav->riff.size);
+	printf("-- format: WAVE\n");
+
+	printf("FMT_CHUNK:\n");
+	printf("-- id: fmt \n");
+	printf("-- size: %u\n", wav->fmt.size);
+	printf("-- audio_format: %hu\n", wav->fmt.audio_format);
+	printf("-- num_channels: %hu\n", wav->fmt.num_channels);
+	printf("-- sample_rate: %hu\n", wav->fmt.sample_rate);
+	printf("-- byte_rate: %hu\n", wav->fmt.byte_rate);
+	printf("-- block_align: %hu\n", wav->fmt.block_align);
+	printf("-- bits_per_sample: %hu\n", wav->fmt.bits_per_sample);
+
+	printf("DATA_CHUNK\n");
+	printf("-- id: data\n");
+	printf("-- size: %d\n", wav->data.size);
+
+	struct EXTRA_chunk *extra = wav->extra;
+
+	while (extra != NULL) {
+		printf("EXTRA_CHUNK:\n");
+
+		unsigned char buff[5] = {0};	
+		buff[4] = '\0';
+		memcpy(buff, extra->id, sizeof(extra->id));
+
+		printf("-- id: %s\n", buff);
+		printf("-- size: %d\n", extra->size);
+
+		extra = extra->next;
+	}
+}
+
+uint64_t WAV_get_max_amp(struct WAV_file *wav)
+{
+	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+	int64_t max_amp = 0;
+
+	union SampleUnion sample;
+	sample.i32 = 0;
+
+	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
+		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
+
+		int64_t t = 0;
+		switch (bytes_per_sample) {
+			case 1:
+				t = sample.i8;
+				break;
+			case 2:
+				t = sample.i16;
+				break;
+			case 3:
+				t = sample.i24;
+				break;
+			case 4:
+				t = sample.i32;
+				break;
+		}
+
+		t = abs(t);
+		if (t > max_amp) max_amp = t;
+	}
+
+	return max_amp;
+}
+
+double WAV_get_max_db(struct WAV_file *wav)
+{
+	if (wav == NULL) {
+		perror("Error: Cannot get max Db; wav is NULL.\n");
+		return -999.0f;
+	} else if (wav->data.buff == NULL) {
+		perror("Error: Cannot get max Db; wav music data is NULL.\n");
+		return -999.0f;
+	}
+	
+	const int64_t max_amp = WAV_get_max_amp(wav);
+
+	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
+}
+
+WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db)
+{
+	if (wav == NULL) return Error;
+	if (wav->data.buff == NULL || wav->data.size == 0) return Error;
+	if (db > 0.0f) db = 0.0f;
+
+	const uint64_t max_amp = WAV_get_max_amp(wav);
+	const int16_t new_max_amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	
+	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+	union SampleUnion sample;
+	sample.i32 = 0;
+
+	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
+		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
+
+		int64_t t = 0;
+		switch (bytes_per_sample) {
+			case 1:
+				t = sample.i8;
+				break;
+			case 2:
+				t = sample.i16;
+				break;
+			case 3:
+				t = sample.i24;
+				break;
+			case 4:
+				t = sample.i32;
+				break;
+		}
+
+		const double p = (double)t / (double)max_amp;
+		t = new_max_amp * p;
+		
+		memcpy(&wav->data.buff[i*bytes_per_sample], &t, bytes_per_sample);
+	}
+	
+	return Success;
+}
+
+WAV_State WAV_write_sin_wave(
+        struct WAV_file *wav,
+        double freq,
+        uint32_t duration,
+	float db)
+{
+	if (wav == NULL) {
+		return Error;
+	} else if (wav->data.buff != NULL || wav->data.size != 0) {
+		free(wav->data.buff);
+		wav->data.buff = NULL;
+		wav->data.size = 0;
+		wav->riff.size = 36;
+	}
+
+	if (db > 0.0f) db = 0.0f;
+
+	const uint32_t size =
+		(wav->fmt.bits_per_sample / 8) 
+		* wav->fmt.num_channels
+		* wav->fmt.sample_rate
+		* duration;
+
+	wav->data.size = size;
+	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	
+	if (wav->data.buff == NULL) return Error;
+
+	wav->riff.size = 36 + size;
+
+	// -6Db amplitude by default
+	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double sample_period = 1.0 / wav->fmt.sample_rate;
+	const double ang_freq = 2.0 * M_PI * freq;
+	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+    // Loop for the number of samples
+    for (uint32_t sample_index = 0;
+         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
+         sample_index++) {
+
+        const double t = (double)sample_index * sample_period;
+        const int16_t sample = (int16_t)(amp * sin(ang_freq * t));
+
+        // Loop for each channel
+        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
+
+            // Calculate the byte offsets based on the bit depth and channel
+            const uint32_t byte_offset = channel_index * bytes_per_sample;
+
+            // Write the sample bytes to the buffer based on the bit depth
+            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
+                wav->data.buff[byte_offset + byte] = (sample >> (byte * 8)) & 0xFF;
+            }
+        }
+    }
+
+    return Success;
+}
+
+WAV_State WAV_write_binaural_wave(
+        struct WAV_file *wav,
+        double freq1,
+        double freq2,
+        uint32_t duration,
+	float db)
+{
+	if (wav == NULL) {
+		return Error;
+	} else if (wav->data.buff != NULL || wav->data.size != 0) {
+		free(wav->data.buff);
+		wav->data.buff = NULL;
+		wav->data.size = 0;
+		wav->riff.size = 36;
+	}
+
+	if (db > 0.0f) db = 0.0f;
+
+	const uint32_t size =
+		(wav->fmt.bits_per_sample / 8) 
+		* wav->fmt.num_channels
+		* wav->fmt.sample_rate
+		* duration;
+
+	wav->data.size = size;
+	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
+	
+	if (wav->data.buff == NULL) return Error;
+
+	wav->riff.size = 36 + size;
+
+	// -6Db amplitude by default
+	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
+	const double sample_period = 1.0 / wav->fmt.sample_rate;
+	const double ang_freq1 = 2.0 * M_PI * freq1;
+	const double ang_freq2 = 2.0 * M_PI * freq2;
+	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
+
+    // Loop for the number of samples
+    for (uint32_t sample_index = 0;
+         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
+         sample_index++) {
+
+        const double t = (double)sample_index * sample_period;
+        const int16_t sample1 = (int16_t)(amp * sin(ang_freq1 * t));
+        const int16_t sample2 = (int16_t)(amp * sin(ang_freq2 * t));
+
+        // Loop for each channel
+        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
+
+            // Calculate the byte offsets based on the bit depth and channel
+            const uint32_t byte_offset = channel_index * bytes_per_sample;
+
+            // Write the sample bytes to the buffer based on the bit depth
+            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
+                if (channel % 2 == 0) {
+                    wav->data.buff[byte_offset + byte] = (sample1 >> (byte * 8)) & 0xFF;
+                } else {
+                    wav->data.buff[byte_offset + byte] = (sample2 >> (byte * 8)) & 0xFF;
+                }
+            }
+        }
+    }
+
+    return Success;
 }
 
 static WAV_State read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
@@ -194,293 +460,6 @@ WAV_State WAV_read_file(struct WAV_file *wav, char *file_name)
 	return Success;
 }
 
-void WAV_print(struct WAV_file *wav)
-{
-	printf("RIFF_CHUNK:\n");
-	printf("-- id: RIFF\n");
-	printf("-- size: %d\n", wav->riff.size);
-	printf("-- format: WAVE\n");
-
-	printf("FMT_CHUNK:\n");
-	printf("-- id: fmt \n");
-	printf("-- size: %u\n", wav->fmt.size);
-	printf("-- audio_format: %hu\n", wav->fmt.audio_format);
-	printf("-- num_channels: %hu\n", wav->fmt.num_channels);
-	printf("-- sample_rate: %hu\n", wav->fmt.sample_rate);
-	printf("-- byte_rate: %hu\n", wav->fmt.byte_rate);
-	printf("-- block_align: %hu\n", wav->fmt.block_align);
-	printf("-- bits_per_sample: %hu\n", wav->fmt.bits_per_sample);
-
-	printf("DATA_CHUNK\n");
-	printf("-- id: data\n");
-	printf("-- size: %d\n", wav->data.size);
-
-	struct EXTRA_chunk *extra = wav->extra;
-
-	while (extra != NULL) {
-		printf("EXTRA_CHUNK:\n");
-
-		unsigned char buff[5] = {0};	
-		buff[4] = '\0';
-		memcpy(buff, extra->id, sizeof(extra->id));
-
-		printf("-- id: %s\n", buff);
-		printf("-- size: %d\n", extra->size);
-
-		extra = extra->next;
-	}
-}
-
-union SampleUnion {
-	int8_t  i8;
-	int16_t i16;
-	int32_t i24;
-	int32_t i32;
-};
-
-uint64_t WAV_get_max_amp(struct WAV_file *wav)
-{
-	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
-
-	int64_t max_amp = 0;
-
-	// Union to hold sample bytes and interpret "dynamically"
-	union SampleUnion sample;
-	sample.i32 = 0;
-
-	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
-		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
-
-		int64_t t = 0;
-		switch (bytes_per_sample) {
-			case 1:
-				t = sample.i8;
-				break;
-			case 2:
-				t = sample.i16;
-				break;
-			case 3:
-				t = sample.i24;
-				break;
-			case 4:
-				t = sample.i32;
-				break;
-		}
-
-		t = abs(t);
-		if (t > max_amp) max_amp = t;
-	}
-
-	return max_amp;
-}
-
-WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db)
-{
-	if (wav == NULL) return Error;
-	if (wav->data.buff == NULL || wav->data.size == 0) return Error;
-	if (db > 0.0f) db = 0.0f;
-
-	const uint64_t max_amp = WAV_get_max_amp(wav);
-	const int16_t new_max_amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
-	
-	const uint32_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
-
-	union SampleUnion sample;
-	sample.i32 = 0;
-
-	for (int i = 0; i < ( wav->data.size / bytes_per_sample); ++i) {
-		memcpy(&sample, &wav->data.buff[i*bytes_per_sample], bytes_per_sample);
-
-		int64_t t = 0;
-		switch (bytes_per_sample) {
-			case 1:
-				t = sample.i8;
-				break;
-			case 2:
-				t = sample.i16;
-				break;
-			case 3:
-				t = sample.i24;
-				break;
-			case 4:
-				t = sample.i32;
-				break;
-		}
-
-		const double p = (double)t / (double)max_amp;
-		t = new_max_amp * p;
-		
-		memcpy(&wav->data.buff[i*bytes_per_sample], &t, bytes_per_sample);
-	}
-	
-	return Success;
-}
-
-double WAV_get_max_db(struct WAV_file *wav)
-{
-	if (wav == NULL) {
-		perror("Error: Cannot get max Db; wav is NULL.\n");
-		return -999.0f;
-	} else if (wav->data.buff == NULL) {
-		perror("Error: Cannot get max Db; wav music data is NULL.\n");
-		return -999.0f;
-	}
-	
-	const int64_t max_amp = WAV_get_max_amp(wav);
-
-	return 20.0f * log10f((double)max_amp / (double)((1 << (wav->fmt.bits_per_sample-1))-1));
-}
-
-WAV_State WAV_write_sin_wave(
-        struct WAV_file *wav,
-        double freq,
-        uint32_t duration,
-	float db)
-{
-	if (wav == NULL) {
-		return Error;
-	} else if (wav->data.buff != NULL || wav->data.size != 0) {
-		free(wav->data.buff);
-		wav->data.buff = NULL;
-		wav->data.size = 0;
-		wav->riff.size = 36;
-	}
-
-	if (db > 0.0f) db = 0.0f;
-
-	const uint32_t size =
-		(wav->fmt.bits_per_sample / 8) 
-		* wav->fmt.num_channels
-		* wav->fmt.sample_rate
-		* duration;
-
-	wav->data.size = size;
-	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
-	
-	if (wav->data.buff == NULL) return Error;
-
-	wav->riff.size = 36 + size;
-
-	// -6Db amplitude by default
-	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
-	const double sample_period = 1.0 / wav->fmt.sample_rate;
-	const double ang_freq = 2.0 * M_PI * freq;
-	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
-
-    // Loop for the number of samples
-    for (uint32_t sample_index = 0;
-         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
-         sample_index++) {
-
-        const double t = (double)sample_index * sample_period;
-        const int16_t sample = (int16_t)(amp * sin(ang_freq * t));
-
-        // Loop for each channel
-        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
-            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
-
-            // Calculate the byte offsets based on the bit depth and channel
-            const uint32_t byte_offset = channel_index * bytes_per_sample;
-
-            // Write the sample bytes to the buffer based on the bit depth
-            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
-                wav->data.buff[byte_offset + byte] = (sample >> (byte * 8)) & 0xFF;
-            }
-        }
-    }
-
-    return Success;
-}
-
-WAV_State WAV_write_binaural_wave(
-        struct WAV_file *wav,
-        double freq1,
-        double freq2,
-        uint32_t duration,
-	float db)
-{
-	if (wav == NULL) {
-		return Error;
-	} else if (wav->data.buff != NULL || wav->data.size != 0) {
-		free(wav->data.buff);
-		wav->data.buff = NULL;
-		wav->data.size = 0;
-		wav->riff.size = 36;
-	}
-
-	if (db > 0.0f) db = 0.0f;
-
-	const uint32_t size =
-		(wav->fmt.bits_per_sample / 8) 
-		* wav->fmt.num_channels
-		* wav->fmt.sample_rate
-		* duration;
-
-	wav->data.size = size;
-	wav->data.buff = (unsigned char*)malloc(sizeof(unsigned char) * size);
-	
-	if (wav->data.buff == NULL) return Error;
-
-	wav->riff.size = 36 + size;
-
-	// -6Db amplitude by default
-	const double amp = pow(10, db / 20.0) * (pow(2, wav->fmt.bits_per_sample - 1) - 1);
-	const double sample_period = 1.0 / wav->fmt.sample_rate;
-	const double ang_freq1 = 2.0 * M_PI * freq1;
-	const double ang_freq2 = 2.0 * M_PI * freq2;
-	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
-
-    // Loop for the number of samples
-    for (uint32_t sample_index = 0;
-         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
-         sample_index++) {
-
-        const double t = (double)sample_index * sample_period;
-        const int16_t sample1 = (int16_t)(amp * sin(ang_freq1 * t));
-        const int16_t sample2 = (int16_t)(amp * sin(ang_freq2 * t));
-
-        // Loop for each channel
-        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
-            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
-
-            // Calculate the byte offsets based on the bit depth and channel
-            const uint32_t byte_offset = channel_index * bytes_per_sample;
-
-            // Write the sample bytes to the buffer based on the bit depth
-            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
-                if (channel % 2 == 0) {
-                    wav->data.buff[byte_offset + byte] = (sample1 >> (byte * 8)) & 0xFF;
-                } else {
-                    wav->data.buff[byte_offset + byte] = (sample2 >> (byte * 8)) & 0xFF;
-                }
-            }
-        }
-    }
-
-    return Success;
-}
-
-void WAV_free(struct WAV_file *wav) {
-    if (wav == NULL) return;
-
-    if (wav->data.buff != NULL) {
-	free(wav->data.buff);
-	wav->riff.size -= wav->data.size;
-	wav->data.size = 0;
-    }
-
-    while (wav->extra != NULL) {
-	if (wav->extra->buff != NULL) {
-		free(wav->extra->buff);
-		wav->extra->buff = NULL;
-	}
- 
-	struct EXTRA_chunk *t = wav->extra;
-	wav->extra = wav->extra->next;
-	free(t);
-    }
-}
-
 WAV_State WAV_write_to_file(
         struct WAV_file* wav,
         const char* file_name)
@@ -585,4 +564,25 @@ WAV_State WAV_write_to_file(
 	fclose(file);
 
 	return Success;
+}
+
+void WAV_free(struct WAV_file *wav) {
+    if (wav == NULL) return;
+
+    if (wav->data.buff != NULL) {
+	free(wav->data.buff);
+	wav->riff.size -= wav->data.size;
+	wav->data.size = 0;
+    }
+
+    while (wav->extra != NULL) {
+	if (wav->extra->buff != NULL) {
+		free(wav->extra->buff);
+		wav->extra->buff = NULL;
+	}
+ 
+	struct EXTRA_chunk *t = wav->extra;
+	wav->extra = wav->extra->next;
+	free(t);
+    }
 }

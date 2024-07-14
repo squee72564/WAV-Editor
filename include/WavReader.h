@@ -79,18 +79,13 @@ void WAV_init(
 		uint16_t bits_per_sample
 	);
 
-WAV_State WAV_read_file(
-		struct WAV_file *wav,
-		char *file_name
-	);
-
 void WAV_print(struct WAV_file *wav);
 
 uint64_t WAV_get_max_amp(struct WAV_file *wav);
 
-WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db);
-
 double WAV_get_max_db(struct WAV_file *wav);
+
+WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db);
 
 WAV_State WAV_write_sin_wave(
 		struct WAV_file *file,
@@ -107,12 +102,17 @@ WAV_State WAV_write_binaural_wave(
 		float db 
 	);
 
-void WAV_free(struct WAV_file *wav);
+WAV_State WAV_read_file(
+		struct WAV_file *wav,
+		char *file_name
+	);
 
 WAV_State WAV_write_to_file(
 		struct WAV_file *wav,
 		const char* file_name
 	);
+
+void WAV_free(struct WAV_file *wav);
 
 #ifdef __cplusplus
 }
