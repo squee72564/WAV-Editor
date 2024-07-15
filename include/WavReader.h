@@ -74,9 +74,9 @@ struct WAV_file {
 
 void WAV_init(
 		struct WAV_file *wav,
-		uint16_t num_channels,
-		uint32_t sample_rate,
-		uint16_t bits_per_sample
+		const uint16_t num_channels,
+		const uint32_t sample_rate,
+		const uint16_t bits_per_sample
 	);
 
 void WAV_print(struct WAV_file *wav);
@@ -89,22 +89,22 @@ WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db);
 
 WAV_State WAV_write_sin_wave(
 		struct WAV_file *file,
-		double frequency,
-		uint32_t duration,
+		const double frequency,
+		const uint32_t duration,
 		float db
 	);
 
 WAV_State WAV_write_binaural_wave(
 		struct WAV_file *wav,
-		double frequency1,
-		double frequency2,
-		uint32_t duration,
+		const double frequency1,
+		const double frequency2,
+		const uint32_t duration,
 		float db 
 	);
 
 WAV_State WAV_read_file(
 		struct WAV_file *wav,
-		char *file_name
+		const char *file_name
 	);
 
 WAV_State WAV_write_to_file(

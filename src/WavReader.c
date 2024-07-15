@@ -15,9 +15,9 @@ union SampleUnion {
 
 void WAV_init(
 		struct WAV_file *wav,
-		uint16_t num_channels,
-		uint32_t sample_rate,
-		uint16_t bits_per_sample)
+		const uint16_t num_channels,
+		const uint32_t sample_rate,
+		const uint16_t bits_per_sample)
 {
 
 	*wav = (struct WAV_file) {
@@ -181,8 +181,8 @@ WAV_State WAV_normalize_max_db(struct WAV_file *wav, double db)
 
 WAV_State WAV_write_sin_wave(
         struct WAV_file *wav,
-        double freq,
-        uint32_t duration,
+        const double freq,
+        const uint32_t duration,
 	float db)
 {
 	if (wav == NULL) {
@@ -242,9 +242,9 @@ WAV_State WAV_write_sin_wave(
 
 WAV_State WAV_write_binaural_wave(
         struct WAV_file *wav,
-        double freq1,
-        double freq2,
-        uint32_t duration,
+        const double freq1,
+        const double freq2,
+        const uint32_t duration,
 	float db)
 {
 	if (wav == NULL) {
@@ -409,7 +409,7 @@ static WAV_State read_EXTRA_chunk(struct WAV_file *wav, FILE *file, unsigned cha
 	return Success;
 }
 
-WAV_State WAV_read_file(struct WAV_file *wav, char *file_name)
+WAV_State WAV_read_file(struct WAV_file *wav, const char *file_name)
 {
 	if (file_name == NULL) return Error;
 
@@ -427,20 +427,16 @@ WAV_State WAV_read_file(struct WAV_file *wav, char *file_name)
 		if ( fread(&id, sizeof(id), 1, file) != 1 ) break;
 
 		if (memcmp(id, "RIFF", sizeof(id)) == 0 ||
-		    memcmp(id, "RIFX", sizeof(id)) == 0)
-		{
+		    memcmp(id, "RIFX", sizeof(id)) == 0) {
 			if (!read_RIFF_chunk(wav, file, id)) break;
 		}
-		else if (memcmp(id, "fmt ", sizeof(id)) == 0)
-		{
+		else if (memcmp(id, "fmt ", sizeof(id)) == 0) {
 			if (!read_FMT_chunk(wav, file)) break;
 		}
-		else if (memcmp(id, "data", sizeof(id)) == 0)
-		{
+		else if (memcmp(id, "data", sizeof(id)) == 0) {
 			if (!read_DATA_chunk(wav, file)) break;
 		}
-		else
-		{
+		else {
 			if (!read_EXTRA_chunk(wav, file, id)) break;
 		}
 	}
@@ -467,7 +463,7 @@ WAV_State WAV_write_to_file(
 	if (wav == NULL) return Error;
 	if (file_name == NULL) return Error;
 
-	FILE* file = fopen(file_name, "w");
+	FILE* file = fopen(file_name, "wb");
 
 	if (file == NULL) {
 		perror("File opening failed\n");
