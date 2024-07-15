@@ -99,6 +99,15 @@ void WAV_print(
 	);
 
 /**
+ * Print the metadata of a WAV_file struct to stdout
+ *
+ * @param wav a pointer to the WAV_file struct
+ */
+void WAV_print_metadata(
+		struct WAV_file *wav
+	);
+
+/**
  * Get the absolute max amplitude value of the waveform data
  *
  * @param wav a pointer to the WAV_file struct

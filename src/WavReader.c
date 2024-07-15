@@ -73,18 +73,75 @@ void WAV_print(struct WAV_file *wav)
 
 	struct EXTRA_chunk *extra = wav->extra;
 
-	while (extra != NULL) {
-		printf("EXTRA_CHUNK:\n");
+	unsigned char buff[5] = {0};	
+	buff[4] = '\0';
 
-		unsigned char buff[5] = {0};	
-		buff[4] = '\0';
+	while (extra != NULL) {
+
 		memcpy(buff, extra->id, sizeof(extra->id));
 
+		printf("EXTRA_CHUNK:\n");
 		printf("-- id: %s\n", buff);
 		printf("-- size: %d\n", extra->size);
 
 		extra = extra->next;
 	}
+}
+
+void WAV_print_metadata(struct WAV_file *wav)
+{
+	int found = 0;
+
+	struct EXTRA_chunk *metadata_chunk = wav->extra;
+
+	while (metadata_chunk != NULL) {
+		if (memcmp(metadata_chunk->id,   "LIST", 4) == 0 &&
+		    memcmp(metadata_chunk->buff, "INFO", 4) == 0) {
+			found = 1;
+			break;
+		}
+
+		metadata_chunk = metadata_chunk->next;
+	}
+
+	if (found == 0) {
+		perror("No existing metadata chunk found\n");
+		return;
+	}
+
+	uint32_t byte_pos = 4;
+
+	uint32_t info_id_sz = 0;
+	unsigned char buff[5] = {0};
+	buff[4] = '\0';
+
+	while (byte_pos < metadata_chunk->size) {
+		memcpy(&buff, &metadata_chunk->buff[byte_pos], 4);
+		printf("%s\n", buff);
+		byte_pos += 4;
+
+		memcpy(&info_id_sz, &metadata_chunk->buff[byte_pos], 4);
+		byte_pos += 4;
+
+		if (info_id_sz % 2 == 1) info_id_sz++;	// make even
+
+		printf("-- data (size %d):\n\t", info_id_sz);
+
+		// Right now skip stuff like Traktors proprietary data
+		if (memcmp(&buff, "NITR", 4) == 0) {
+			byte_pos += info_id_sz;
+			continue;
+		}
+
+		for (int i = 0; i < info_id_sz; ++i) {
+			putchar(metadata_chunk->buff[byte_pos]);
+			byte_pos++;
+		}
+
+		printf("\n");
+	}
+
+	printf("\n\n");
 }
 
 uint64_t WAV_get_max_amp(struct WAV_file *wav)
