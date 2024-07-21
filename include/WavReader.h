@@ -140,6 +140,7 @@ WAV_State WAV_normalize_max_db(
 		struct WAV_file *wav,
 		double 		db
 	);
+
 /**
  * Write a sin wave to the waveform data of the WAV_file struct.
  * This will replace any existing waveform data.
@@ -182,6 +183,7 @@ WAV_State WAV_write_binaural_wave(
 		const uint32_t 	duration,
 		float 		db 
 	);
+
 /**
  * Read the contents of an existing .wav file into a WAV_file struct
  *
