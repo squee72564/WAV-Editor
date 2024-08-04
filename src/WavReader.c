@@ -105,7 +105,7 @@ void WAV_print_metadata(struct WAV_file *wav)
 	}
 
 	if (found == 0) {
-		perror("No existing metadata chunk found\n");
+		perror("No existing INFO metadata chunk found\n");
 		return;
 	}
 
@@ -172,7 +172,7 @@ uint64_t WAV_get_max_amp(struct WAV_file *wav)
 				break;
 		}
 
-		t = abs(t);
+		t = llabs(t);
 		if (t > max_amp) max_amp = t;
 	}
 
@@ -371,7 +371,7 @@ static WAV_State read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char
 	fread(&wav->riff.size, sizeof(wav->riff.size), 1, file);
 	fread(&wav->riff.format, sizeof(wav->riff.format), 1, file);
 
-	if (memcmp(&wav->riff.format, "WAVE", sizeof(wav->riff.format) != 0)) {
+	if (memcmp(&wav->riff.format, "WAVE", sizeof(wav->riff.format)) != 0) {
 		fclose(file);
 		return Error;
 	}
@@ -584,7 +584,7 @@ WAV_State WAV_write_to_file(
 	while (sentinel != NULL) {	
 		size_t extra_ret = fwrite(
 				&sentinel,
-				sizeof(sentinel)
+				sizeof(*sentinel)
 					- sizeof(sentinel->buff)
 					- sizeof(sentinel->next),
 				1,
