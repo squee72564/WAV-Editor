@@ -50,7 +50,7 @@ int main(void) {
 
 
 	if (WAV_normalize_max_db(&wav, new_db) == Error) {
-		fprintf(stderr, "ERROR: Could not change WAV struct to %d db!\n", new_db);   
+		fprintf(stderr, "ERROR: Could not change WAV struct to %.2f db!\n", new_db);   
 		return 1;
 	}
 
