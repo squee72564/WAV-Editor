@@ -365,6 +365,277 @@ WAV_State WAV_write_binaural_wave(
     return Success;
 }
 
+static float uint8_to_float(uint8_t val) {
+    return val / 255.0f;
+}
+
+static int8_t float_to_uint8(float val) {
+    return (uint8_t)fminf(fmaxf(val * 256.0f, 0.0f), 255.0f);
+}
+
+static float int16_to_float(int16_t val) {
+    return val / 32768.0f;
+}
+
+static int16_t float_to_int16(float val) {
+    return (int16_t)fminf(fmaxf(val * 32768.0f, -32768.0f), 32767.0f);
+}
+
+static float int24_to_float(int32_t val) {
+    return val / 8388608.0f;
+}
+
+static int32_t float_to_int24(float val) {
+    return (int32_t)fminf(fmaxf(val * 8388608.0f, -8388608.0f), 8388607.0f);
+}
+
+static float int32_to_float(int32_t val) {
+    return (float)val;
+}
+
+static int32_t float_to_int32(float val) {
+    return (int32_t)fminf(fmaxf(val, -2147483648.0f), 2147483647.0f);
+}
+
+void WAV_apply_low_pass_filter(struct WAV_file *wav, float cutoff)
+{
+	if (wav == NULL || wav->data.buff == NULL || wav->fmt.num_channels == 0) {
+		return;
+	}
+
+	float rc = 1.0f / (cutoff * 2 * M_PI);
+	float dt = 1.0f / (float)wav->fmt.sample_rate;
+	float alpha = dt / (rc + dt);
+
+	uint32_t bytes_per_sample = wav->fmt.bits_per_sample / 8;
+
+	float *prev_vals = (float*)malloc(sizeof(float) * wav->fmt.num_channels);
+
+	if (prev_vals == NULL) {
+		return;
+	}
+
+	memset(prev_vals, 0, sizeof(float) * wav->fmt.num_channels);
+
+	// For each channel we should get the first value and save it to the array of prev values
+	for (size_t i = 0; i < wav->fmt.num_channels; ++i) {
+		size_t buff_idx = bytes_per_sample * i;
+		
+		switch (bytes_per_sample) {
+			case 1:
+				uint8_t val8 = 0;
+				memcpy(&val8, &wav->data.buff[buff_idx], 1);
+				prev_vals[i] = uint8_to_float(val8);
+				break;
+			case 2:
+				int16_t val16 = 0;
+				memcpy(&val16, &wav->data.buff[buff_idx], 2);
+				prev_vals[i] = int16_to_float(val16);
+				break;
+			case 3:
+				int32_t val24 = 0;
+				memcpy(&val24, &wav->data.buff[buff_idx], 3);
+				val24 &= 0xFFFFFF;
+				prev_vals[i] = int24_to_float(val24);
+				break;
+			case 4:
+				int32_t val32 = 0;
+				memcpy(&val32, &wav->data.buff[buff_idx], 4);
+				prev_vals[i] = int32_to_float(val32);
+				break;
+		}
+	}
+
+	for (size_t sample_index = 1;
+	     sample_index < wav->data.size / (wav->fmt.num_channels * bytes_per_sample);
+	     sample_index++) {
+
+		const size_t sample_byte_idx = sample_index * (bytes_per_sample * wav->fmt.num_channels);
+
+		for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+			const size_t buff_idx =  sample_byte_idx + (bytes_per_sample * channel);
+			
+			float sample_val = 0.0f;
+			switch(bytes_per_sample) {
+				case 1:
+					uint8_t val8 = 0;
+					memcpy(&val8, &wav->data.buff[buff_idx], 1);
+					sample_val = uint8_to_float(val8);
+					break;
+				case 2:
+					int16_t val16 = 0;
+					memcpy(&val16, &wav->data.buff[buff_idx], 2);
+					sample_val = int16_to_float(val16);
+					break;
+				case 3:
+					int32_t val24 = 0;
+					memcpy(&val24, &wav->data.buff[buff_idx], 3);
+					val24 &= 0xFFFFFF;
+					sample_val = int24_to_float(val24);
+					break;
+				case 4:
+					int32_t val32 = 0;
+					memcpy(&val32, &wav->data.buff[buff_idx], 4);
+					sample_val = int32_to_float(val32);
+					break;
+			}
+
+			const float filtered_val = alpha * sample_val + (1.0f - alpha) * prev_vals[channel];
+			prev_vals[channel] = filtered_val;
+			
+			switch(bytes_per_sample) {
+				case 1:
+					uint8_t val8 = float_to_uint8(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val8, 1);
+					break;
+				case 2:
+					int16_t val16 = float_to_int16(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val16, 2);
+					break;
+				case 3:
+					int32_t val24 = float_to_int24(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val24, 3);
+					break;
+				case 4:
+					int32_t val32 = float_to_int32(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val32, 4);
+					break;
+			}
+		}
+	}
+
+	free(prev_vals);
+	prev_vals = NULL;
+}
+
+void WAV_apply_high_pass_filter(struct WAV_file *wav, float cutoff)
+{
+	if (wav == NULL || wav->data.buff == NULL || wav->fmt.num_channels == 0) {
+		return;
+	}
+
+	float rc = 1.0f / (cutoff * 2 * M_PI);
+	float dt = 1.0f / (float)wav->fmt.sample_rate;
+	float alpha = rc / (rc + dt);
+
+	uint32_t bytes_per_sample = wav->fmt.bits_per_sample / 8;
+
+	float *prev_vals = (float*)malloc(sizeof(float) * wav->fmt.num_channels);
+
+	if (prev_vals == NULL) {
+		return;
+	}
+
+	memset(prev_vals, 0, sizeof(float) * wav->fmt.num_channels);
+
+	float *prev_filtered_vals = (float*)malloc(sizeof(float) * wav->fmt.num_channels);
+
+	if (prev_filtered_vals == NULL) {
+		return;
+	}
+
+	memset(prev_filtered_vals, 0, sizeof(float) * wav->fmt.num_channels);
+
+
+	// For each channel we should get the first value and save it to the array of prev values
+	for (size_t i = 0; i < wav->fmt.num_channels; ++i) {
+		size_t buff_idx = bytes_per_sample * i;
+		
+		switch (bytes_per_sample) {
+			case 1:
+				uint8_t val8 = 0;
+				memcpy(&val8, &wav->data.buff[buff_idx], 1);
+				prev_vals[i] = uint8_to_float(val8);
+				prev_filtered_vals[i] = uint8_to_float(val8);
+				break;
+			case 2:
+				int16_t val16 = 0;
+				memcpy(&val16, &wav->data.buff[buff_idx], 2);
+				prev_vals[i] = int16_to_float(val16);
+				prev_filtered_vals[i] = int16_to_float(val16);
+				break;
+			case 3:
+				int32_t val24 = 0;
+				memcpy(&val24, &wav->data.buff[buff_idx], 3);
+				val24 &= 0xFFFFFF;
+				prev_vals[i] = int24_to_float(val24);
+				prev_filtered_vals[i] = int24_to_float(val24);
+				break;
+			case 4:
+				int32_t val32 = 0;
+				memcpy(&val32, &wav->data.buff[buff_idx], 4);
+				prev_vals[i] = int32_to_float(val32);
+				prev_filtered_vals[i] = int32_to_float(val32);
+				break;
+		}
+	}
+
+	for (size_t sample_index = 1;
+	     sample_index < wav->data.size / (wav->fmt.num_channels * bytes_per_sample);
+	     sample_index++) {
+
+		const size_t sample_byte_idx = sample_index * (bytes_per_sample * wav->fmt.num_channels);
+
+		for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+			const size_t buff_idx =  sample_byte_idx + (bytes_per_sample * channel);
+			
+			float sample_val = 0.0f;
+			switch(bytes_per_sample) {
+				case 1:
+					uint8_t val8 = 0;
+					memcpy(&val8, &wav->data.buff[buff_idx], 1);
+					sample_val = uint8_to_float(val8);
+					break;
+				case 2:
+					int16_t val16 = 0;
+					memcpy(&val16, &wav->data.buff[buff_idx], 2);
+					sample_val = int16_to_float(val16);
+					break;
+				case 3:
+					int32_t val24 = 0;
+					memcpy(&val24, &wav->data.buff[buff_idx], 3);
+					val24 &= 0xFFFFFF;
+					sample_val = int24_to_float(val24);
+					break;
+				case 4:
+					int32_t val32 = 0;
+					memcpy(&val32, &wav->data.buff[buff_idx], 4);
+					sample_val = int32_to_float(val32);
+					break;
+			}
+
+			const float filtered_val = alpha * (prev_filtered_vals[channel] + sample_val - prev_vals[channel]);
+			prev_filtered_vals[channel] = filtered_val;
+			prev_vals[channel] = sample_val;
+			
+			switch(bytes_per_sample) {
+				case 1:
+					uint8_t val8 = float_to_uint8(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val8, 1);
+					break;
+				case 2:
+					int16_t val16 = float_to_int16(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val16, 2);
+					break;
+				case 3:
+					int32_t val24 = float_to_int24(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val24, 3);
+					break;
+				case 4:
+					int32_t val32 = float_to_int32(filtered_val);
+					memcpy(&wav->data.buff[buff_idx], &val32, 4);
+					break;
+			}
+		}
+	}
+
+	free(prev_vals);
+	prev_vals = NULL;
+
+	free(prev_filtered_vals);
+	prev_filtered_vals = NULL;
+}
+
 static WAV_State read_RIFF_chunk(struct WAV_file *wav, FILE *file, unsigned char* id)
 {
 	memcpy(wav->riff.id, id, sizeof(wav->riff.id));

@@ -162,6 +162,22 @@ WAV_State WAV_write_sin_wave(
 	);
 
 /**
+ * Apply a low pass filter to the waveform data of the WAV_file struct.
+ *
+ * @param wav a pointer to the WAV_file struct
+ * @param cutoff the cutoff frequency
+ */
+void WAV_apply_low_pass_filter(struct WAV_file *wav, float cutoff);
+
+/**
+ * Apply a high pass filter to the waveform data of the WAV_file struct.
+ *
+ * @param wav a pointer to the WAV_file struct
+ * @param cutoff the cutoff frequency
+ */
+void WAV_apply_high_pass_filter(struct WAV_file *wav, float cutoff);
+
+/**
  * Write a binaural wave to the waveform data of the WAV_file struct.
  * This will replace any existing waveform data.
  *
