@@ -272,27 +272,29 @@ WAV_State WAV_write_sin_wave(
 	const double ang_freq = 2.0 * M_PI * freq;
 	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
-    // Loop for the number of samples
-    for (uint32_t sample_index = 0;
-         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
-         sample_index++) {
+    	// Loop for the number of samples
+    	for (uint32_t sample_index = 0;
+             sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
+             sample_index++) {
 
-        const double t = (double)sample_index * sample_period;
-        const int16_t sample = (int16_t)(amp * sin(ang_freq * t));
+        	const double t = (double)sample_index * sample_period;
+        	const int16_t sample = (int16_t)(amp * sin(ang_freq * t));
 
-        // Loop for each channel
-        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
-            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
+        	// Loop for each channel
+        	for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+            		const uint32_t channel_index =
+				sample_index * wav->fmt.num_channels + channel;
 
-            // Calculate the byte offsets based on the bit depth and channel
-            const uint32_t byte_offset = channel_index * bytes_per_sample;
+            		// Calculate the byte offsets based on the bit depth and channel
+            		const uint32_t byte_offset = channel_index * bytes_per_sample;
 
-            // Write the sample bytes to the buffer based on the bit depth
-            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
-                wav->data.buff[byte_offset + byte] = (sample >> (byte * 8)) & 0xFF;
-            }
-        }
-    }
+            		// Write the sample bytes to the buffer based on the bit depth
+            		for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
+                		wav->data.buff[byte_offset + byte] =
+					(sample >> (byte * 8)) & 0xFF;
+            		}
+        	}
+    	}
 
     return Success;
 }
@@ -335,32 +337,35 @@ WAV_State WAV_write_binaural_wave(
 	const double ang_freq2 = 2.0 * M_PI * freq2;
 	const uint16_t bytes_per_sample = (wav->fmt.bits_per_sample / 8);
 
-    // Loop for the number of samples
-    for (uint32_t sample_index = 0;
-         sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
-         sample_index++) {
+ 	// Loop for the number of samples
+    	for (uint32_t sample_index = 0;
+             sample_index < wav->data.size /  (wav->fmt.num_channels * bytes_per_sample);
+             sample_index++) {
 
-        const double t = (double)sample_index * sample_period;
-        const int16_t sample1 = (int16_t)(amp * sin(ang_freq1 * t));
-        const int16_t sample2 = (int16_t)(amp * sin(ang_freq2 * t));
+        	const double t = (double)sample_index * sample_period;
+        	const int16_t sample1 = (int16_t)(amp * sin(ang_freq1 * t));
+        	const int16_t sample2 = (int16_t)(amp * sin(ang_freq2 * t));
 
-        // Loop for each channel
-        for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
-            const uint32_t channel_index = sample_index * wav->fmt.num_channels + channel;
+        	// Loop for each channel
+        	for (uint16_t channel = 0; channel < wav->fmt.num_channels; ++channel) {
+            		const uint32_t channel_index =
+				sample_index * wav->fmt.num_channels + channel;
 
-            // Calculate the byte offsets based on the bit depth and channel
-            const uint32_t byte_offset = channel_index * bytes_per_sample;
+            		// Calculate the byte offsets based on the bit depth and channel
+            		const uint32_t byte_offset = channel_index * bytes_per_sample;
 
-            // Write the sample bytes to the buffer based on the bit depth
-            for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
-                if (channel % 2 == 0) {
-                    wav->data.buff[byte_offset + byte] = (sample1 >> (byte * 8)) & 0xFF;
-                } else {
-                    wav->data.buff[byte_offset + byte] = (sample2 >> (byte * 8)) & 0xFF;
-                }
-            }
-        }
-    }
+            		// Write the sample bytes to the buffer based on the bit depth
+            		for (uint16_t byte = 0; byte < bytes_per_sample; ++byte) {
+                		if (channel % 2 == 0) {
+                    			wav->data.buff[byte_offset + byte] =
+						(sample1 >> (byte * 8)) & 0xFF;
+                		} else {
+                    			wav->data.buff[byte_offset + byte] =
+						(sample2 >> (byte * 8)) & 0xFF;
+                		}
+            		}
+        	}
+    	}
 
     return Success;
 }
