@@ -485,7 +485,10 @@ void WAV_apply_low_pass_filter(struct WAV_file *wav, float cutoff)
 					break;
 			}
 
-			const float filtered_val = alpha * sample_val + (1.0f - alpha) * prev_vals[channel];
+			const float filtered_val =
+				alpha
+				* sample_val + (1.0f - alpha) * prev_vals[channel];
+			
 			prev_vals[channel] = filtered_val;
 			
 			switch(bytes_per_sample) {
@@ -609,7 +612,10 @@ void WAV_apply_high_pass_filter(struct WAV_file *wav, float cutoff)
 					break;
 			}
 
-			const float filtered_val = alpha * (prev_filtered_vals[channel] + sample_val - prev_vals[channel]);
+			const float filtered_val =
+				alpha
+				* (prev_filtered_vals[channel] + sample_val - prev_vals[channel]);
+			
 			prev_filtered_vals[channel] = filtered_val;
 			prev_vals[channel] = sample_val;
 			
